@@ -24,8 +24,15 @@ class BetaPert:
         mean = (self.low + self.gamma * self.mode + self.high) / (self.gamma + 2)
         if mean == self.low:
             return np.full(n, self.low)
+        if self.mode == mean or self.high == self.low:
+            return np.full(n, self.mode)
         alpha = (mean - self.low) * (2 * self.mode - self.low - self.high)
-        alpha /= (self.mode - mean) * (self.high - self.low)
+        denominator = (self.mode - mean) * (self.high - self.low)
+        if denominator == 0:
+            return np.full(n, self.mode)
+        alpha /= denominator
+        if alpha <= 0:
+            return np.full(n, self.mode)
         beta = alpha * (self.high - mean) / (mean - self.low)
         samples = stats.beta.rvs(alpha, beta, size=n)
         return self.low + samples * (self.high - self.low)
