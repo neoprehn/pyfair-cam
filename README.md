@@ -17,11 +17,25 @@ pip install -e .
 ## Quick Start
 
 ```python
-from pyfair_cam import FairCamModel, FairCamSimulator, BetaPert, LogNormal
+from pyfair_cam import (
+    FairCamModel, FairCamSimulator, BetaPert, LogNormal, ResistiveControl,
+)
 
 model = FairCamModel(name="Ransomware Szenario")
-model.input_threat_frequency(BetaPert(low=5, mode=10, high=20))
-model.input_loss_magnitude(LogNormal(mean=200_000, stdev=150_000))
+model.input_threat_frequency(BetaPert(low=5, mode=10, high=20))   # TEF
+model.input_loss_magnitude(LogNormal(mean=200_000, stdev=150_000))  # LM
+
+# Resistive Controls wirken auf die Susceptibility (Frequenz-Seite), nicht auf die LM
+model.add_resistive_control(
+    ResistiveControl(
+        name="EDR / Anti-Malware",
+        intended_efficacy=BetaPert(low=0.70, mode=0.85, high=0.95),
+        variant_efficacy=0.10,
+        variance_frequency=4,   # 4× pro Jahr variant
+        variance_duration=5,    # je 5 Tage
+        coverage=0.95,
+    )
+)
 
 simulator = FairCamSimulator(n_simulations=10_000, seed=42)
 simulator.run(model)
@@ -29,6 +43,22 @@ simulator.run(model)
 stats = simulator.get_statistics()
 print(f"ALE: € {stats['mean']:,.0f}")
 ```
+
+## Modell
+
+```
+Risk = LEF × LM
+LEF  = TEF × Susceptibility
+Susceptibility = Π (1 − OpEffᵢ)            (Defense-in-Depth, OR-Logik)
+OpEff = Cov × [Rel × IntEff + (1−Rel) × VarEff]
+Rel   = (1 − VF/365) ^ VD
+```
+
+Die Reaktion auf die **Loss Magnitude** (Detection/Response) ist bewusst noch
+nicht enthalten und folgt in einer späteren Iteration.
+
+> **Unabhängige Bibliothek:** pyfair-cam hat keine Abhängigkeit zu `pyfair`.
+> Die Integration von FAIR und FAIR-CAM erfolgt auf Anwendungsebene (fair-web).
 
 ## Attribution
 

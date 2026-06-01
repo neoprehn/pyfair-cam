@@ -1,8 +1,14 @@
 """
 FairCamSimulator – Die Wurstmaschine 🌭
 
-Monte Carlo Simulator für FAIR-CAM Faktoren.
+Monte-Carlo-Simulator für FAIR-CAM-Modelle.
 Vektorisiert mit numpy für maximale Performance.
+
+Reproduzierbarkeit:
+    Der Simulator erzeugt aus ``seed`` *genau einen* ``numpy.random.Generator``
+    und reicht ihn an das Modell durch. Alle Zufallsgrößen ziehen damit aus
+    demselben, fortlaufenden Strom → unabhängige, reproduzierbare Samples.
+    Es wird nie ``np.random.seed()`` (globaler Zustand) verwendet.
 """
 
 import numpy as np
@@ -11,36 +17,35 @@ from typing import Optional
 
 
 class FairCamSimulator:
-    """
-    Monte Carlo Simulator für FAIR-CAM Modelle.
-
-    Eigenschaften:
-    - Vektorisiert (numpy) – kein Python-Loop
-    - Reproduzierbar (Seed-basiert)
-    - Konfigurierbare Anzahl Simulationen
-    - Berechnet LEC, ALE, VaR und Perzentile
-    """
+    """Monte-Carlo-Simulator für FAIR-CAM-Modelle."""
 
     def __init__(self, n_simulations: int = 10_000, seed: Optional[int] = None):
         self.n_simulations = n_simulations
         self.seed = seed
-        self._results = None
+        self._results = None      # np.ndarray der Risiko-Samples
+        self._components = None    # dict mit allen Zwischengrößen
 
     def run(self, model) -> np.ndarray:
-        """Hauptmethode – startet die Simulation."""
-        if self.seed is not None:
-            np.random.seed(self.seed)
-        self._results = model.calculate(self.n_simulations, self.seed)
+        """Startet die Simulation und gibt die Risiko-Samples zurück."""
+        rng = np.random.default_rng(self.seed)
+        self._components = model.calculate(self.n_simulations, rng)
+        self._results = self._components["risk"]
         return self._results
 
     def get_results(self) -> np.ndarray:
-        """Gibt die Simulationsergebnisse zurück."""
+        """Gibt die Risiko-Samples zurück."""
         if self._results is None:
             raise RuntimeError("Simulation wurde noch nicht ausgeführt. Bitte run() aufrufen.")
         return self._results
 
+    def get_components(self) -> dict:
+        """Gibt alle Zwischengrößen (tef, susceptibility, lef, lm, risk) zurück."""
+        if self._components is None:
+            raise RuntimeError("Simulation wurde noch nicht ausgeführt. Bitte run() aufrufen.")
+        return self._components
+
     def get_statistics(self) -> dict:
-        """Berechnet statistische Kennzahlen der Ergebnisse."""
+        """Berechnet statistische Kennzahlen der Risiko-Samples."""
         r = self.get_results()
         return {
             'mean':   float(np.mean(r)),
@@ -58,24 +63,20 @@ class FairCamSimulator:
         }
 
     def get_lec(self, n_points: int = 100) -> pd.DataFrame:
-        """
-        Berechnet die Loss Exceedance Curve (LEC).
-        Gibt DataFrame mit Verlusthöhe und Überschreitungswahrscheinlichkeit zurück.
-        """
+        """Berechnet die Loss Exceedance Curve (LEC)."""
         r = self.get_results()
         losses = np.linspace(r.min(), r.max(), n_points)
-        exceedance = [np.mean(r >= loss) for loss in losses]
+        exceedance = [float(np.mean(r >= loss)) for loss in losses]
         return pd.DataFrame({'loss': losses, 'exceedance_probability': exceedance})
 
     def get_ale(self) -> float:
-        """Annual Loss Expectancy – Erwartungswert der Verluste."""
+        """Annual Loss Expectancy – Erwartungswert der Risiko-Samples."""
         return float(np.mean(self.get_results()))
 
     def get_var(self, confidence: float = 0.95) -> float:
-        """Value at Risk – Verlust der mit (1-confidence) Wahrscheinlichkeit überschritten wird."""
+        """Value at Risk – Perzentil der Risiko-Verteilung."""
         return float(np.percentile(self.get_results(), confidence * 100))
 
     def export_results(self) -> pd.DataFrame:
-        """Exportiert alle Ergebnisse als DataFrame."""
-        stats = self.get_statistics()
-        return pd.DataFrame([stats])
+        """Exportiert die Kennzahlen als DataFrame."""
+        return pd.DataFrame([self.get_statistics()])
