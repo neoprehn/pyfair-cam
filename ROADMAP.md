@@ -65,30 +65,56 @@ Ziel: Die FAIR-CAM-Kernformeln korrekt, getestet, dokumentiert.
 - [x] **Korrekte Modellkette:** `Risk = (TEF × Susc) × LM`; Resistance wirkt auf
       Susceptibility (Frequenz-Seite), NICHT auf die LM.
 - [x] **Unit-Tests gegen Knowledge-Base-Formeln** (`tests/test_core.py`).
-- [ ] **Boolean-Control-Logik vervollständigen:** Detection = AND
-      (Visibility ∧ Monitoring ∧ Recognition); kommt mit der LM-Seite (Phase 2).
+- [x] **Boolean-Control-Logik vervollständigen:** Detection = AND
+      (Visibility ∧ Monitoring ∧ Recognition); umgesetzt in Phase 2 über
+      `P(Detect) = Cov × V_eff × [...]` (Coverage/Visibility/Recognition
+      multiplizieren sich, die AND-Semantik ist in der Formel selbst kodiert).
 
 **Status:** Resistance/Prevention-Mathematik vollständig & getestet.
-Detection/Response (AND-Logik) gehört zur LM-Seite → Phase 2.
+Detection/Response (AND-Logik) umgesetzt in Phase 2.
 
 ---
 
-## Phase 2 — Detection & Response (Loss-Magnitude-Seite)
+## Phase 2 — Detection & Response (Loss-Magnitude-Seite) ✅ ERLEDIGT
 
 Ziel: Detection/Response wirken korrekt auf die Loss Magnitude (stage-gated).
 
-- [ ] **Stage-gated Detection-Modell** (Kill-Chain-Stufen mit Stage-Parametern).
-- [ ] **Multi-Review-Detection:**
+- [x] **Stage-gated Detection-Modell** (Kill-Chain-Stufen mit Stage-Parametern):
+      `Stage`-Klasse (`factors/detection_response.py`), 10 Parameter je Stage
+      (Cov/V/Rel_V/R/Rel_R/M/Rel_M/τ/P/ρ), Skalar-oder-Distribution wie bei
+      `ResistiveControl`.
+- [x] **Multi-Review-Detection:**
       `λ = τ / (M/Rel_M)`,
       `P(Detect) = Cov × V_eff × [1 − (1 − R_eff)^(ρ×λ)]`
-- [ ] **Conditional Magnitude Distributions:**
-      Outcome-Klassen (Early/Mid/Late/Full/Attacker-Fails) →
-      `E[Loss] = Σ P(outcome) × E[LM_class]`
-- [ ] **Response Time mit Concurrency:**
-      `T = T_containment + T_resilience − α × min(...)`
-- [ ] **Detection-SLO-Alignment:** `P(Detect within T)`
-- [ ] **`DetectionResponseFactor` neu implementieren** (ersetzt aktuelle Platzhalter-Mult.).
-- [ ] Tests gegen `04_Detection_Response_Measurement.md`.
+      inkl. ρ=0-Sonderfall (echter Sprung, kein Grenzwert) →
+      `core.reviews_per_stage`, `core.stage_detection_probability`.
+- [x] **Cumulative Progression:** `P(Reach_i) = P(Reach_{i-1}) × [1−P(Detect_{i-1})] × P_{i-1}`
+      → `core.progression_reach_probability`, in `DetectionResponseFactor.simulate()`
+      als per-Trial-Bernoulli-Walk über die Stages (nicht als geschlossene Form –
+      siehe KB-Warnung zur Nichtlinearität von Loss-Minimization).
+- [x] **Conditional Magnitude Distributions:**
+      Outcome-Klassen (konfigurierbar, z.B. Early/Mid/Late/Full/Attacker-Fails) →
+      pro Trial wird aus der zur Outcome-Klasse passenden Verteilung gezogen
+      (`DetectionResponseFactor` sampelt alle Klassenverteilungen immer
+      vollständig, Auswahl per Maske – hält den RNG-Strom deterministisch).
+- [x] **Response Time mit Concurrency:**
+      `T = T_containment + T_resilience − α × min(...)` → `core.response_time`,
+      `DetectionResponseFactor.response_time()` (Reporting-only, nicht im Risk-Pfad).
+- [x] **Detection-SLO-Alignment:** `P(Detect within T)` → `core.detection_within_time`
+      (Reporting-only).
+- [x] **`DetectionResponseFactor` implementiert** (`set_detection_response()` in
+      `FairCamModel`, schließt sich mit `input_loss_magnitude()` aus).
+- [x] Tests gegen `04_Detection_Response_Measurement.md` (`test_core.py`,
+      `test_detection_response.py`, `test_model.py`; 52 Tests grün).
+
+**Status:** Rechenkern vollständig & getestet. Beim Nachrechnen des KB-eigenen
+6-Stufen-Ransomware-Beispiels reproduzieren Stage 1 und 6 ihre eigenen
+P(Detect)-Zahlen nicht exakt aus Formel+Tabelle (Stufen 2–5 passen exakt) –
+die Implementierung folgt bewusst der dokumentierten Formel wörtlich statt der
+abgedruckten Beispielzahlen (Entscheidung mit @neoprehn abgestimmt); die
+Outcome-Klassen-Wahrscheinlichkeiten am Ende der Kaskade weichen dadurch nur
+~0.5–0.9pp von den KB-Kopfzahlen ab. Frontend-Anbindung bewusst noch nicht
+begonnen (kommt erst mit Phase 5, nach Phase 3/4).
 
 ---
 

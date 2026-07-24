@@ -3,12 +3,15 @@ Tests für FairCamModel und FairCamSimulator (Integration / Verhalten).
 """
 
 import numpy as np
+import pytest
 from pyfair_cam import (
     FairCamModel,
     FairCamSimulator,
     BetaPert,
     LogNormal,
     ResistiveControl,
+    Stage,
+    DetectionResponseFactor,
 )
 
 
@@ -97,6 +100,68 @@ def test_tef_lm_independent():
     (würde auf gekoppelte Zufallsströme / Seed-Bug hindeuten)."""
     sim = FairCamSimulator(n_simulations=50_000, seed=123)
     sim.run(create_basic_model())
+    comp = sim.get_components()
+    corr = np.corrcoef(comp['tef'], comp['loss_magnitude'])[0, 1]
+    assert abs(corr) < 0.05
+
+
+def create_detection_response_factor():
+    stage = Stage(
+        name="Initial Access", coverage=0.95, visibility=0.70, vis_reliability=0.95,
+        recognition=0.40, rec_reliability=0.90, monitoring_cadence=0.042,
+        mon_reliability=0.95, duration=0.25, progression_probability=0.90,
+        review_independence=0.40,
+    )
+    return DetectionResponseFactor(
+        name="Ransomware (vereinfacht)",
+        stages=[stage],
+        stage_outcome_map={1: "early"},
+        loss_distributions={
+            "early": BetaPert(low=2_000, mode=8_000, high=30_000),
+            DetectionResponseFactor.FULL_IMPACT: BetaPert(low=1_000_000, mode=3_000_000, high=5_000_000),
+            DetectionResponseFactor.ATTACKER_FAILS: BetaPert(low=2_000, mode=5_000, high=15_000),
+        },
+    )
+
+
+def create_detection_response_model():
+    model = FairCamModel(name="Test Modell (Detection/Response)")
+    model.input_threat_frequency(BetaPert(low=1, mode=5, high=10))
+    model.set_detection_response(create_detection_response_factor())
+    return model
+
+
+def test_set_detection_response_and_input_loss_magnitude_are_exclusive():
+    model = FairCamModel(name="Konflikt-Test")
+    model.input_loss_magnitude(LogNormal(mean=100_000, stdev=50_000))
+    with pytest.raises(ValueError):
+        model.set_detection_response(create_detection_response_factor())
+
+    model2 = FairCamModel(name="Konflikt-Test 2")
+    model2.set_detection_response(create_detection_response_factor())
+    with pytest.raises(ValueError):
+        model2.input_loss_magnitude(LogNormal(mean=100_000, stdev=50_000))
+
+
+def test_model_with_detection_response_runs_end_to_end():
+    sim = FairCamSimulator(n_simulations=5_000, seed=42)
+    results = sim.run(create_detection_response_model())
+    assert np.all(results >= 0)
+    comp = sim.get_components()
+    assert "outcome_class" in comp
+    assert "detected_at_stage" in comp
+    assert len(comp["outcome_class"]) == 5_000
+
+
+def test_seed_reproducibility_with_detection_response():
+    r1 = FairCamSimulator(n_simulations=2_000, seed=17).run(create_detection_response_model())
+    r2 = FairCamSimulator(n_simulations=2_000, seed=17).run(create_detection_response_model())
+    np.testing.assert_array_equal(r1, r2)
+
+
+def test_tef_independent_of_detection_response_loss():
+    sim = FairCamSimulator(n_simulations=50_000, seed=321)
+    sim.run(create_detection_response_model())
     comp = sim.get_components()
     corr = np.corrcoef(comp['tef'], comp['loss_magnitude'])[0, 1]
     assert abs(corr) < 0.05

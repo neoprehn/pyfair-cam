@@ -1,5 +1,5 @@
 """
-FairCamModel – FAIR-CAM Hauptmodell (Frequenz-Seite).
+FairCamModel – FAIR-CAM Hauptmodell (Frequenz- und Loss-Magnitude-Seite).
 
 Modelliert Risiko nach der FAIR/FAIR-CAM-Taxonomie:
 
@@ -11,8 +11,9 @@ Wichtig (FAIR-CAM-konform):
     - Resistive Controls wirken auf die *Frequenz-Seite* (Susceptibility),
       NICHT als Multiplikator auf die Loss Magnitude.
     - Ohne Controls ist Susceptibility = 1.0 (jedes Threat-Event wird zum Loss-Event).
-    - Die Reaktion auf die Loss Magnitude (Detection/Response) ist bewusst NOCH
-      NICHT enthalten und wird in einer späteren Iteration ergänzt.
+    - Die Loss Magnitude kommt entweder aus einer flachen Verteilung
+      (``input_loss_magnitude``) oder aus einem stage-gated Detection/Response-
+      Modell (``set_detection_response``) – beide schließen sich gegenseitig aus.
 
 Das Modell ist zustandsarm: ``calculate(n, rng)`` zieht alle Zufallsgrößen aus
 dem übergebenen ``numpy.random.Generator``. Es ruft selbst NIE ``np.random.seed``.
@@ -32,6 +33,7 @@ class FairCamModel:
         self.n_simulations = n_simulations
         self._tef = None
         self._lm = None
+        self._detection_response = None
         self._controls = []
 
     def input_threat_frequency(self, distribution):
@@ -40,8 +42,30 @@ class FairCamModel:
         return self
 
     def input_loss_magnitude(self, distribution):
-        """Setzt die Loss Magnitude (LM) pro Loss-Event."""
+        """Setzt die Loss Magnitude (LM) pro Loss-Event.
+
+        Schließt sich mit ``set_detection_response`` aus.
+        """
+        if self._detection_response is not None:
+            raise ValueError(
+                "input_loss_magnitude() und set_detection_response() schließen sich "
+                "gegenseitig aus."
+            )
         self._lm = as_distribution(distribution)
+        return self
+
+    def set_detection_response(self, factor):
+        """Setzt ein stage-gated Detection/Response-Modell (``DetectionResponseFactor``)
+        als Quelle der Loss Magnitude.
+
+        Schließt sich mit ``input_loss_magnitude`` aus.
+        """
+        if self._lm is not None:
+            raise ValueError(
+                "set_detection_response() und input_loss_magnitude() schließen sich "
+                "gegenseitig aus."
+            )
+        self._detection_response = factor
         return self
 
     def add_resistive_control(self, control):
@@ -66,21 +90,29 @@ class FairCamModel:
         -------
         dict
             Schlüssel: ``tef``, ``susceptibility``, ``lef``, ``loss_magnitude``,
-            ``risk`` – jeweils numpy-Arrays der Länge ``n``.
+            ``risk`` – jeweils numpy-Arrays der Länge ``n``. Ist ein
+            ``DetectionResponseFactor`` gesetzt, zusätzlich ``outcome_class``
+            und ``detected_at_stage``.
         """
-        if self._tef is None or self._lm is None:
-            raise ValueError("TEF und Loss Magnitude müssen gesetzt sein.")
+        if self._tef is None:
+            raise ValueError("TEF muss gesetzt sein.")
+        if self._lm is None and self._detection_response is None:
+            raise ValueError("LM oder DetectionResponseFactor müssen gesetzt sein.")
 
         tef = self._tef.sample(n, rng)
         susc = self.susceptibility(n, rng)
         lef = tef * susc
-        lm = self._lm.sample(n, rng)
-        risk = lef * lm
 
-        return {
-            "tef": tef,
-            "susceptibility": susc,
-            "lef": lef,
-            "loss_magnitude": lm,
-            "risk": risk,
-        }
+        result = {"tef": tef, "susceptibility": susc, "lef": lef}
+
+        if self._detection_response is not None:
+            dr = self._detection_response.simulate(n, rng)
+            lm = dr["loss_magnitude"]
+            result["outcome_class"] = dr["outcome_class"]
+            result["detected_at_stage"] = dr["detected_at_stage"]
+        else:
+            lm = self._lm.sample(n, rng)
+
+        result["loss_magnitude"] = lm
+        result["risk"] = lef * lm
+        return result
