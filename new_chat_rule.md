@@ -10,5 +10,12 @@ Lies bitte:
     das persistente Memory (MEMORY.md + memory/*.md) — wird in jede neue Session geladen,
     CLAUDE.md — Projektregeln.
 
+    Danach kurz die FAIR-CAM Knowledge Base (Submodule `knowledge-base/`) gegen upstream
+    (https://github.com/faircam/FAIR-CAM-Knowledge-Base, Branch main) prüfen:
+    `cd knowledge-base && git fetch origin && git log --oneline -1 origin/main` mit dem
+    aktuell eingebundenen Commit vergleichen. Bei Abweichung kurz Bescheid geben, nicht
+    automatisch aktualisieren (Auffrischen: `git submodule update --remote knowledge-base`
+    + Commit des neuen Submodule-Pointers im Hauptrepo).
+
 Was steht als nächstes an?
 
