@@ -19,6 +19,7 @@ from pyfair_cam import (
     FairCamModel,
     FairCamSimulator,
     BetaPert,
+    Poisson,
     ResistiveControl,
     Stage,
     DetectionResponseFactor,
@@ -95,11 +96,13 @@ model.input_threat_frequency(BetaPert(low=5, mode=10, high=20))
 model.add_resistive_control(
     ResistiveControl(
         name="EDR / Anti-Malware",
+        # Alle Verteilungen auf "moderate" Konfidenz (siehe pyfair
+        # confidence_mapping.py: pert gamma=4 [Default], poisson range=0.4).
         intended_efficacy=BetaPert(low=0.70, mode=0.85, high=0.95),
-        variant_efficacy=0.10,
-        variance_frequency=4,
-        variance_duration=5,
-        coverage=0.95,
+        variant_efficacy=BetaPert(low=0.02, mode=0.10, high=0.25),
+        variance_frequency=Poisson(lam=4, range_=0.4),
+        variance_duration=BetaPert(low=2, mode=5, high=10),
+        coverage=BetaPert(low=0.85, mode=0.95, high=0.99),
     )
 )
 model.set_detection_response(detection_response)

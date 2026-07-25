@@ -60,12 +60,11 @@ class BetaPert(Distribution):
         rng_range = high - low
         mean = (low + gamma * mode + high) / (gamma + 2)
         stdev = rng_range / (gamma + 2)
-        # Degenerierter Fall: mode == mean → symmetrisch, alpha = beta
-        if np.isclose(mean, mode):
-            alpha = beta = gamma / 2 + 1
-        else:
-            alpha = ((mean - low) / rng_range) * (((mean - low) * (high - mean) / stdev ** 2) - 1)
-            beta = alpha * (high - mean) / (mean - low)
+        # (mean - low) und (high - mean) sind für low <= mode <= high und
+        # high > low stets > 0 (mean-low ist minimal = stdev, bei mode == low)
+        # -> keine Division durch 0 möglich, kein Sonderfall nötig.
+        alpha = ((mean - low) / rng_range) * (((mean - low) * (high - mean) / stdev ** 2) - 1)
+        beta = alpha * (high - mean) / (mean - low)
         self._dist = stats.beta(alpha, beta, loc=low, scale=rng_range)
 
     def sample(self, n: int, rng: np.random.Generator) -> np.ndarray:
@@ -116,15 +115,32 @@ class Uniform(Distribution):
 
 
 class Poisson(Distribution):
-    """Poisson-Verteilung – für Häufigkeiten (Events pro Zeitraum)."""
+    """Poisson-Verteilung – für Häufigkeiten (Events pro Zeitraum).
 
-    def __init__(self, lam: float):
+    ``range_`` (optional, Default 0 = feste Rate) bildet Unsicherheit über
+    die Rate ab: pro Trial wird lambda aus
+    ``Uniform(lam*(1-range_), lam*(1+range_))`` gezogen, bevor die
+    Poisson-Ziehung erfolgt – analog pyfairs ``model_input._gen_poisson``.
+    Konfidenz-Default 'moderate' (siehe pyfair `confidence_mapping.py`):
+    ``range_=0.4``.
+    """
+
+    def __init__(self, lam: float, range_: float = 0.0):
         if lam < 0:
             raise ValueError("Poisson benötigt eine nicht-negative Rate (lam).")
+        if not (0.0 <= range_ < 1.0):
+            raise ValueError('"range_" muss in [0, 1) liegen.')
         self.lam = lam
+        self.range_ = range_
 
     def sample(self, n: int, rng: np.random.Generator) -> np.ndarray:
-        return rng.poisson(self.lam, n).astype(float)
+        if self.range_ == 0.0:
+            lam_sample = self.lam
+        else:
+            low = max(0.0, self.lam * (1.0 - self.range_))
+            high = self.lam * (1.0 + self.range_)
+            lam_sample = rng.uniform(low, high, n)
+        return rng.poisson(lam_sample, n).astype(float)
 
 
 class Bernoulli(Distribution):
