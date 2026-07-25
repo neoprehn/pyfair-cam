@@ -86,7 +86,7 @@ detection_response = DetectionResponseFactor(
     loss_distributions=loss_distributions,
     t_containment=BetaPert(low=1, mode=3, high=10),
     t_resilience=BetaPert(low=2, mode=7, high=21),
-    concurrency=0.4,
+    concurrency=BetaPert(low=0.2, mode=0.4, high=0.6),
 )
 
 # 4. Modell: Threat Event Frequency + Resistive Control (Frequenz-Seite, Phase 1)
@@ -128,4 +128,4 @@ print(lec.head())
 
 # 7. Response-Zeit separat (Reporting-only, nicht Teil der Risk-Berechnung)
 rt = detection_response.response_time(20_000, np.random.default_rng(42))
-print(f"\nMittlere Response-Zeit (Containment+Resilience, Concurrency 0.4): {rt.mean():.1f} Tage")
+print(f"\nMittlere Response-Zeit (Containment+Resilience, Concurrency ~0.4): {rt.mean():.1f} Tage")
