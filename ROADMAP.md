@@ -124,8 +124,19 @@ Ziel: pyfair-cam liefert die abgeleiteten Parameter an pyfair und nutzt dessen M
 
 - [ ] **Adapter-Schicht:** CAM-Ergebnisse → pyfair-Inputs
       (TEF via Avoidance/Deterrence, Susceptibility via Resistance, LM via Detection/Response).
-- [ ] **`FairCamModel.to_pyfair()`** — baut ein pyfair-`Model` aus den CAM-Parametern.
-- [ ] **Validierung:** identische Inputs ohne Controls → CAM-Ergebnis == reines pyfair.
+- [ ] **`FairCamModel.to_pyfair(mode="vuln"|"cs")`** — baut ein pyfair-`Model` aus den
+      CAM-Parametern, mit zwei Andock-Pfaden:
+      - **Pfad Vuln (A):** `Susc = 1 − OpEff` direkt auf `model.input_data('Vulnerability', …)`.
+      - **Pfad CS (B):** `OpEff → RS-Perzentil`-Umrechnung, dann
+        `model.input_data('Control Strength', …)` + `'Threat Capability'` getrennt —
+        pyfair rechnet Vulnerability selbst über den nativen Step (`model_calc.py`).
+- [ ] **Kalibrierungsfrage lösen (Umrechnungsschicht):** saubere/dokumentierte Abbildung
+      `OpEff → RS-Perzentil` finden, sodass Pfad A und B unter gegebener
+      TCap-Verteilung dieselbe resultierende Vulnerability liefern (numerisch,
+      annahmebehaftet — siehe Abschnitt „Offene Architektur-Entscheidung" unten).
+      Ohne das liefern A/B unterschiedliche Ergebnisse bei identischen Controls.
+- [ ] **Validierung:** identische Inputs ohne Controls → CAM-Ergebnis == reines pyfair
+      (für beide Pfade).
 - [ ] **Variance Management (VM) & Decision Support (DS)** als Modifikatoren auf
       Reliability/Decision-Quality (optional, kann nach Phase 4 rutschen).
 - [ ] End-to-End-Test: vollständiges Szenario (z.B. Ransomware) durchrechnen.
@@ -156,8 +167,10 @@ Ziel: pyfair-cam als Library in der Django-App nutzbar.
       (`pip install git+https://github.com/neoprehn/pyfair-cam.git@<tag>` in `requirements.txt`,
       analog zur pyfair-Anbindung).
 - [ ] **Version-Tagging** in pyfair-cam (SemVer, z.B. `v0.2.0`) für reproduzierbare Builds.
-- [ ] **Andock-Variante festlegen** → siehe Abschnitt
-      „Offene Architektur-Entscheidung: Andockpunkt FAIR ↔ FAIR-CAM" weiter unten.
+- [ ] **Admin-Einstellung für Andockpunkt** (Vuln/CS, analog `AppKonfiguration`) →
+      siehe Abschnitt „Offene Architektur-Entscheidung: Andockpunkt FAIR ↔ FAIR-CAM"
+      weiter unten. Mechanismus (beide Pfade) kommt aus Phase 3, hier nur die
+      Umschalt-UI + Default-Entscheidung.
 - [ ] Django-Views/Forms für Control-Eingabe, Report-Einbettung.
 - [ ] Deployment läuft über die **bestehende fair-web CI/CD** (IONOS) — siehe unten.
 
@@ -165,8 +178,13 @@ Ziel: pyfair-cam als Library in der Django-App nutzbar.
 
 ## Offene Architektur-Entscheidung: Andockpunkt FAIR ↔ FAIR-CAM
 
-> **Noch nicht entschieden.** Bewusst offen gelassen — vielleicht sind wir bis zur
-> Integration (Phase 3/5) schlauer. Diese Entscheidung NICHT vorschnell treffen.
+> **Mechanismus entschieden (2026-07-25), finaler Default noch offen.** Es wird eine
+> **Umrechnungsschicht (Variante C)** gebaut, die sowohl A (Vulnerability direkt) als
+> auch B (CS/RS über pyfairs nativen Step) unterstützt. Welche der beiden **Default**
+> bzw. **einzig sichtbare Option** in fair-web wird, entscheidet sich erst später —
+> geplant als **Admin-Einstellung** (analog `AppKonfiguration` in fair-web), die zur
+> Laufzeit zwischen Andockpunkt Vuln/CS umschaltet. Der Rechenkern (`core.py`) bleibt
+> davon unberührt, siehe unten.
 
 **Worum geht es?**
 FAIR-CAM kann an zwei verschiedenen Stellen der FAIR-Taxonomie andocken. Beide sind
@@ -197,9 +215,12 @@ ohne dessen native Susceptibility-Logik zu verlieren.
 - Evtl. Kalibrierung: Welcher RS-Perzentilwert erzeugt unter gegebener TCap-Verteilung
   dieselbe Vulnerability wie `1 − OpEff`? → numerisch lösbar, aber annahmebehaftet.
 
-**Aktueller Stand:** Die Library implementiert **Variante A** (KB-konform, eigenständig).
-Die Entscheidung A / B / C fällt erst bei der fair-web-Integration und betrifft NUR
-den Adapter — der Rechenkern (`core.py`) bleibt in allen Varianten gleich.
+**Aktueller Stand:** Die Library implementiert intern weiterhin nur **Susceptibility
+= 1 − OpEff** (KB-konform) — das ändert sich nicht. Neu ist, dass **Phase 3** beide
+Adapter-Pfade (A und B) auf Basis dieser Susceptibility baut, statt nur A. Die Wahl,
+welcher Pfad in fair-web tatsächlich genutzt wird, fällt erst bei der Web-Integration
+(Phase 5) und betrifft NUR den Adapter/die Admin-Einstellung — der Rechenkern
+(`core.py`) bleibt in allen Varianten gleich.
 
 ---
 
@@ -238,8 +259,9 @@ parallel zu Phase 2/3 begonnen werden, sobald der Rechenkern erste Ergebnisse li
 
 ## Offene Punkte / spätere Entscheidungen
 
-- **Andockpunkt FAIR ↔ FAIR-CAM (A / B / C):** an Susceptibility, an CS/RS oder
-  beide via Umrechnungsschicht — siehe eigener Abschnitt oben. *Wichtigste offene Frage.*
+- **Andockpunkt FAIR ↔ FAIR-CAM:** Mechanismus entschieden (Umrechnungsschicht, beide
+  Pfade A+B), Default/Admin-Wahl noch offen — siehe eigener Abschnitt oben.
+  *Wichtigste offene Frage bleibt die `OpEff → RS-Perzentil`-Kalibrierung.*
 - VM- und DS-Domänen: voller Umfang oder zunächst vereinfacht?
 - Eigene MC-Engine endgültig zugunsten pyfair aufgeben, oder als Fallback behalten?
 - Report: statisches HTML (wie pyfair) oder interaktiv (Plotly)? — Plotly ist in
