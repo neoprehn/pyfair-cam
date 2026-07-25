@@ -1,16 +1,134 @@
 """
 Beispiel – Ransomware-Szenario mit Detection & Response (Phase 2) 🌭
 
-Zeigt das vollständige stage-gated Detection/Response-Modell aus
-04_Detection_Response_Measurement.md: ein Angreifer durchläuft sechs
-Kill-Chain-Stufen; an jeder Stufe entscheidet eine Monte-Carlo-Ziehung über
-Erkennung oder Fortschritt. Die resultierende Outcome-Klasse (Early/Mid/Late
-Detection, Full Impact, Attacker Fails) bestimmt die Verlusthöhe.
+============================================================================
+DAS SZENARIO IN WORTEN (für alle, die mit FAIR-CAM noch nicht firm sind)
+============================================================================
 
-Kombiniert mit einem resistiven Control (Phase 1) auf der Frequenz-Seite:
+Ein Angreifer versucht, das Unternehmen mit Ransomware zu treffen. Dazu muss
+er sechs Schritte hintereinander schaffen (die "Kill Chain", Abschnitt 1):
+sich zuerst Zugang verschaffen (Initial Access), sich festsetzen
+(Persistence), sich höhere Rechte erschleichen (Priv Escalation), sich im
+Netzwerk ausbreiten (Lateral Movement), Daten für die Erpressung
+zusammentragen (Data Staging) und zuletzt verschlüsseln/erpressen
+(Execution).
+
+Nach JEDER Stufe gilt: entweder wird der Angreifer entdeckt (Ende der
+Geschichte, mit Schaden je nachdem WIE FRÜH), oder er kommt unentdeckt eine
+Stufe weiter, oder er scheitert von selbst (schlecht vorbereiteter Angriff,
+Pech, etc.). Zwei Zufallsmechanismen konkurrieren also an jeder Stufe:
+"werde ich erwischt?" vs. "komme ich weiter?".
+
+Das Modell rechnet das über zwei FAIR-CAM-Bausteine:
+
+  - Resistance (Phase 1, Frequenz-Seite): EIN "EDR / Anti-Malware"-Control
+    senkt die Wahrscheinlichkeit, dass aus einem Angriffsversuch überhaupt
+    ein Ereignis wird ("Susceptibility"). Wirkt VOR der Kill Chain.
+  - Detection & Response (Phase 2, Schadenshöhen-Seite): bildet die Kill
+    Chain selbst ab UND wie hoch der Schaden ausfällt, je nachdem, WANN
+    (wenn überhaupt) der Angreifer erwischt wird. Je später die Entdeckung,
+    desto größer der angerichtete Schaden.
 
     Risk = (TEF × Susceptibility) × LM
-    LM   = stage-gated Detection/Response-Ergebnis (statt flacher Verteilung)
+    LM   = stage-gated Detection/Response-Ergebnis (statt einer einzigen,
+           immer gleich breiten Verlustverteilung)
+
+----------------------------------------------------------------------------
+1. Die sechs Kill-Chain-Stufen — 10 Parameter pro Stufe
+
+Jede Stufe ist eine eigene "Chance", den Angreifer zu erwischen. Am Beispiel
+von Stufe 1 ("Initial Access"):
+
+  - coverage=0.95           : Auf 95% der relevanten Angriffsfläche gibt es
+                              überhaupt eine Detection-Möglichkeit (Rest ist
+                              blinder Fleck, z.B. nicht überwachte Systeme).
+  - visibility=0.70         : WENN der Angreifer dort aktiv wird, entsteht in
+                              70% der Fälle tatsächlich eine Spur/ein Log-
+                              Eintrag, der das festhält.
+  - vis_reliability=0.95    : Wie zuverlässig diese Log-/Telemetrie-Erfassung
+                              selbst läuft (95% Betriebssicherheit).
+  - recognition=0.40        : WENN eine Spur existiert, wird sie in 40% der
+                              Fälle korrekt als bösartig erkannt (Analyst
+                              oder Regel) statt übersehen/falsch eingeordnet.
+  - rec_reliability=0.90    : Zuverlässigkeit dieser Erkennungslogik selbst.
+  - monitoring_cadence=0.042: Alle ~0.042 Tage (≈ 1 Stunde) wird geprüft, ob
+                              es Auffälligkeiten gibt (Review-Takt).
+  - mon_reliability=0.95    : Zuverlässigkeit, dass dieser Review-Takt auch
+                              eingehalten wird.
+  - duration=0.25           : Der Angreifer hält sich in dieser Stufe im
+                              Schnitt ~0.25 Tage (6 Std.) auf, bevor er
+                              weiterzieht — das bestimmt, wie viele
+                              Review-Gelegenheiten in dieser Zeit anfallen.
+  - progression_probability=0.90: WENN nicht entdeckt, schafft der Angreifer
+                              es in 90% der Fälle zur nächsten Stufe (in 10%
+                              scheitert er von selbst -> "attacker_fails").
+  - review_independence=0.40: Wie unabhängig aufeinanderfolgende Reviews
+                              voneinander sind (0.40 = mittelmäßig
+                              unabhängig; jeder weitere Blick bringt nicht
+                              die volle zusätzliche Fangchance, weil viele
+                              Reviews denselben blinden Fleck teilen).
+
+Aus visibility×vis_reliability und recognition×rec_reliability ergibt sich
+die "effektive" Sichtbarkeit/Erkennung; aus duration/monitoring_cadence/
+mon_reliability die Anzahl echter Review-Gelegenheiten während der
+Verweildauer. Daraus (plus coverage, review_independence) berechnet sich
+P(Detect) für genau diese Stufe. Die anderen fünf Stufen funktionieren
+identisch, nur mit stufentypischen Werten (z.B. Execution hat mit 0.85
+etwas geringere Coverage, weil Verschlüsselungsvorgänge schwerer in Echtzeit
+zu fassen sind als z.B. Persistence-Mechanismen).
+
+----------------------------------------------------------------------------
+2. Wer wird wann erwischt -> welche Schadensklasse?
+
+  stage_outcome_map: Stufe 1-2 (Initial Access, Persistence) = "early",
+  Stufe 3-4 (Priv Escalation, Lateral Movement) = "mid",
+  Stufe 5-6 (Data Staging, Execution) = "late". Je später die Entdeckung,
+  desto mehr konnte der Angreifer schon anrichten.
+
+----------------------------------------------------------------------------
+3. Wie hoch ist der Schaden je Klasse?
+
+  - "early"          : € 2.000 – 30.000 (Modus 8.000)   — früh gestoppt
+  - "mid"             : € 25.000 – 250.000 (Modus 75.000) — mittel
+  - "late"            : € 200.000 – 2 Mio. (Modus 500.000) — spät erwischt
+  - full_impact       : € 1 – 5 Mio. (Modus 3 Mio.)  — NIE erwischt, Angriff
+                        läuft bis zum Ende durch (Verschlüsselung + Erpressung)
+  - attacker_fails    : € 2.000 – 15.000 (Modus 5.000) — Angreifer scheitert
+                        von selbst, irgendwo unterwegs (kleine Aufräumkosten)
+
+  detection_response bündelt das Ganze und ergänzt zwei Zeitgrößen, die NUR
+  fürs Reporting sind (fließen nicht in die Risikoberechnung ein):
+  t_containment (Eindämmung, 1-10 Tage) und t_resilience (Wiederherstellung,
+  2-21 Tage), verknüpft über "concurrency" (~0.4 = die beiden Prozesse
+  laufen teils parallel statt rein nacheinander).
+
+----------------------------------------------------------------------------
+4. Die Frequenz-Seite: wie oft passiert überhaupt ein Angriffsversuch,
+   und wie gut hält das EDR/Anti-Malware-Control dagegen?
+
+  - Threat Event Frequency: 5-20× pro Jahr (Modus 10) versucht sich jemand
+    an einem Ransomware-Angriff.
+  - Das Control wehrt davon einen Teil ab, BEVOR die Kill Chain überhaupt
+    beginnt (Resistance, Phase 1):
+      - intended_efficacy=0.70-0.95 : Wirksamkeit im Normalbetrieb
+      - variant_efficacy=0.02-0.25  : Rest-Wirksamkeit, wenn das Control
+                                      gerade geschwächt/außer Takt ist
+      - variance_frequency (Poisson, Rate 4/Jahr): wie oft im Jahr das
+        passiert
+      - variance_duration=2-10 Tage : wie lange so eine Schwächephase dauert
+      - coverage=0.85-0.99          : Anteil der Systeme, die das Control
+                                      überhaupt erreicht
+
+  Nur was durch dieses Sieb kommt, löst überhaupt die Kill Chain (Abschnitt
+  1-3) aus, deren Ausgang dann die tatsächliche Verlusthöhe bestimmt.
+
+----------------------------------------------------------------------------
+5. Was am Ende rausfällt
+
+  20.000 Monte-Carlo-Durchläufe -> ALE (Erwartungswert), Median, VaR 95/99,
+  eine Verteilung über die fünf Schadensklassen (zeigt z.B.: wie oft endet
+  es als "full_impact"?), die Loss-Exceedance-Curve (LEC) und die mittlere
+  Response-Zeit.
 """
 
 import numpy as np
