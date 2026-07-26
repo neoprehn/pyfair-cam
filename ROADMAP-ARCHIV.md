@@ -112,3 +112,37 @@ Ziel: pyfair-cam liefert die abgeleiteten Parameter an pyfair und nutzt dessen M
 
 **Status:** 69 Tests grün, `ruff check .` sauber. VM/DS waren ursprünglich als optionaler Anhang dieser Phase geführt und wurden am 2026-07-26 als eigene Phasen
 6 und 7 herausgelöst.
+
+---
+
+### Phase 4 — Eigener HTML-Report (lokal, wie pyfair) ✅ ERLEDIGT
+
+Ziel: `report.to_html()` erzeugt einen eigenständigen, ansehnlichen Report — lokal, offline, ohne externe Abhängigkeiten.
+
+- [x] **Report-Gerüst:** `pyfair_cam/report/{theme,charts,simple_report}.py`. Bewusst **kein** matplotlib/PNG-Roundtrip wie bei pyfair — Charts sind
+      Inline-SVG, damit Datenfarben (nicht nur Text/Rahmen) dem Dark/Light-Theme-Toggle folgen. Templating per f-String-Assembly (kein Jinja2, keine neue
+      Dependency). Design an fair-web angelehnt (Bahnschrift, Sky-Blau-Akzent, CSS-Variablen für Dark/Light), aber komplett eigenständig (kein Bootstrap-CDN,
+      da die DoD eine einzelne offline lauffähige Datei verlangt).
+- [x] **Farbpalette validiert statt erfunden:** kategoriale Chart-Farben und Status-Farben (good/warning/serious/critical) sind die geprüfte Default-Palette
+      der `dataviz`-Skill (`scripts/validate_palette.js`), gegen die tatsächlichen fair-web-Oberflächen (dunkel/hell) geprüft — nicht eigens gewählt.
+- [x] **Visualisierungen:** Loss Exceedance Curve (Linien-/Flächenchart mit Hover-Tooltips), Verteilungshistogramm, Control-Wirksamkeits-Übersicht
+      (OpEff je Control als Balkenchart), Detection-Stage-Breakdown (Outcome-Klassen-Verteilung, sortiert von bestem zu schlechtestem Ausgang).
+- [x] **FAIR-CAM-spezifische Panels:** Susceptibility-Zerlegung (Tabelle je Control + kombinierter Wert), Boolean-Control-Tree (schematische
+      Defense-in-Depth-OR-Kette als SVG, bewusst schlichter als pyfairs koordinatenbasierter FAIR-Baum — FAIR-CAM hat keinen mehrstufigen Baum, nur eine
+      OR-Kette), Vorher/Nachher-Vergleich (mit/ohne Controls, per temporärer Gegenrechnung mit geleerter Controls-Liste, danach restauriert).
+- [x] **LM-Vorher/Nachher-Panel:** ursprünglicher FAIR-LM-Wert (Full-Impact-Verteilung, „vorher") bleibt unverändert neben dem tatsächlichen, durch
+      Detection/Response reduzierten Ergebnis („nachher") sichtbar — Parallel-Anzeige wie in „Rechenprinzip LM-Seite" entschieden, kein Ersatz.
+- [x] **Pfad-A/B-Panel (zusätzlich zum ursprünglichen Plan):** optionales Panel via `compare_paths()`, erscheint nur wenn `threat_capability` übergeben *und*
+      das optionale `pyfair`-Paket installiert ist — sonst wird der Abschnitt still übersprungen (kein Fehler).
+- [x] **Design-System angewendet:** Dark-Mode als Default mit Light-Toggle (eigener, von fair-webs `localStorage`-Key entkoppelter Toggle), Bahnschrift,
+      Sky-Blau — alle Abschnitte erscheinen bedingt je nach Modellkonfiguration (Controls/Detection-Response/pyfair vorhanden oder nicht).
+- [x] **Beispiele aktualisiert:** `examples/basic_simulation.py` und `examples/ransomware_scenario.py` erzeugen jetzt zusätzlich eine HTML-Report-Datei;
+      generierte Reports sind über `.gitignore` (`examples/*.html`) von der Versionierung ausgenommen (Build-Artefakt).
+- [x] Tests (`tests/test_report.py`, 10 Stück): Struktur-/Inhaltsprüfungen (balancierte Tags, bedingte Abschnitte, keine NaN, Datei-Schreiben, dass die
+      Vorher/Nachher-Gegenrechnung das Modell nicht dauerhaft mutiert) — kein Pixel-/Rendering-Vergleich, dafür fehlt in der CI-Umgebung ein Browser.
+
+**Nebenbefund aus dieser Phase:**
+- **`.gitignore` hatte seit dem allerersten Commit unaufgelöste Merge-Konflikt-Marker** (`<<<<<<< HEAD` / `=======` / `>>>>>>>`) und doppelte Einträge — Git
+  prüft `.gitignore`-Syntax nicht, daher fiel das nie auf. Bereinigt (ein zusammengeführter, dedupizierter Python-`.gitignore`-Standard).
+
+**Status:** 79 Tests grün, `ruff check .` sauber. Alle ursprünglich geplanten Phase-4-Punkte erledigt, plus das zusätzliche Pfad-A/B-Panel.

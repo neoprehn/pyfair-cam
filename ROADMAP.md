@@ -8,7 +8,7 @@
 > Extra-Dependency** (`pip install pyfair-cam[pyfair]`, lazy import). Wer nur die CAM-Engine nutzt, installiert nichts von pyfair mit. Die eigentliche
 > *Anwendungs*-Integration (Admin-Umschaltung Vuln/CS, UI) bleibt Sache von **fair-web** (Phase 5).
 
-Erledigtes (Phasen 0–3) steht kompakt unten und im Detail in `ROADMAP-ARCHIV.md`.
+Erledigtes (Phasen 0–4) steht kompakt unten und im Detail in `ROADMAP-ARCHIV.md`.
 
 ---
 
@@ -26,29 +26,16 @@ Distributions, Response Time, Detection-SLO-Alignment.
 **Phase 3 — pyfair-Integration ✅:** `to_pyfair(mode="vuln"|"cs")` als optionaler Adapter (Extra `pyfair-cam[pyfair]`), beide Andockpunkte implementiert und
 bewusst unkalibriert gelassen, `compare_paths()` zur Gegenüberstellung, End-to-End-Test mit vollständigem Ransomware-Szenario. Dabei gefunden und dokumentiert:
 pyfairs natives `Vulnerability = mean(CS < TCap)` ist ein Skalar über alle Trials, Pfad CS/B verliert dadurch strukturell Streuung (siehe „Offene
-Architektur-Entscheidung" unten). 69 Tests grün.
+Architektur-Entscheidung" unten).
+
+**Phase 4 — Eigener HTML-Report ✅:** `FairCamReport.to_html()` — eigenständige, offline lauffähige HTML-Datei (Inline-SVG-Charts statt matplotlib/PNG, damit
+Datenfarben dem Dark/Light-Toggle folgen; Design an fair-web angelehnt: Bahnschrift, Sky-Blau, CSS-Variablen). LEC, Histogramm, Control-Wirksamkeit,
+Susceptibility-Zerlegung, Boolean-Control-Tree, Vorher/Nachher-Vergleich (mit/ohne Controls), Detection-Stage-Breakdown, LM-Vorher/Nachher-Panel und optionales
+Pfad-A/B-Panel (`compare_paths()`) — Abschnitte erscheinen automatisch je nach Modellkonfiguration. 79 Tests grün.
 
 ---
 
-## Phase 4 — Eigener HTML-Report (lokal, wie pyfair) ← **als Nächstes**
-
-Ziel: `report.to_html()` erzeugt einen eigenständigen, ansehnlichen Report — lokal.
-
-- [ ] **Report-Gerüst** analog `pyfair/report/` (base_report + HTML-Template + CSS).
-- [ ] **Visualisierungen:** Loss Exceedance Curve (LEC), Verteilungshistogramm, Control-Wirksamkeits-Übersicht (OpEff je Control), Detection-Stage-Breakdown.
-- [ ] **FAIR-CAM-spezifische Panels:** Susceptibility-Zerlegung, Boolean-Control-Tree, Vorher/Nachher-Vergleich (mit/ohne Controls).
-- [ ] **LM-Vorher/Nachher-Panel** (siehe „Rechenprinzip LM-Seite" unten): ursprünglicher FAIR-LM-Wert unverändert neben den CAM-Detection/Response-Infos, plus
-      Stage-Ausgang (early/mid/late/full_impact/attacker_fails) als eigener Layer — kein Ersatz, Parallel-Anzeige.
-- [ ] **Pfad-A/B-Panel:** `compare_paths()`-Ergebnis (stats-Tabelle beider Andockpunkte) inkl. des Streuungs-Hinweises als Fußnote — nicht nur die Zahlen zeigen,
-      sondern auch, warum Pfad B schmalere Tails hat.
-- [ ] **Design-System anwenden** (Dark-Mode, Bahnschrift, Sky-Blau — siehe Memory).
-- [ ] Beispiel-Notebook / `examples/` aktualisieren.
-
-**Definition of Done:** `examples/`-Skript erzeugt eine vollständige HTML-Datei offline.
-
----
-
-## Phase 5 — Web-Integration in fair-web (fair.neoprehn.de)
+## Phase 5 — Web-Integration in fair-web (fair.neoprehn.de) ← **als Nächstes**
 
 Ziel: pyfair-cam als Library in der Django-App nutzbar.
 
@@ -270,7 +257,8 @@ Stattdessen: **Parallel-Anzeige statt Ersatz.**
 - Ein **zweiter Verlauf/Layer** zeigt den Stage-Ausgang (early/mid/late/full_impact/attacker_fails) obendrauf — keine Verschmelzung zu einer einzigen Zahl.
 
 Das betrifft konkret:
-- **Phase 4** (lokaler Report): Vorher/Nachher nebeneinander darstellen (siehe Bullet dort), keine Animation nötig, nur Datenverfügbarkeit.
+- **Phase 4 ✅** (lokaler Report): Vorher/Nachher nebeneinander dargestellt (`FairCamReport.to_html()`, Abschnitt „Loss Magnitude: Vorher/Nachher"), keine
+  Animation, nur Datenverfügbarkeit — wie geplant.
 - **Phase 5** (fair-web): perspektivisch **animierte** Vorher-Nachher-Show — CAM-Ergebnisse dynamisch in die FAIR-Ergebnisse einblenden (Vorbild: fair-web hat
   mit der "animiert aufbauenden" LEC-Kurve bereits ein Muster dafür, siehe `fair-web/ROADMAP-ARCHIV.md` Phase 5). Kein MVP-Bestandteil, spätere Ausbaustufe.
 
@@ -299,8 +287,8 @@ ohne Nutzen.
 Phase 0 (Fundament) ✅
    └─> Phase 1 (Rechenkern) ✅ ──> Phase 2 (Detection/Response) ✅
                                       └─> Phase 3 (pyfair-Integration) ✅
-                                             └─> Phase 4 (HTML-Report, lokal)   ← als Nächstes
-                                                    └─> Phase 5 (fair-web / IONOS)
+                                             └─> Phase 4 (HTML-Report, lokal) ✅
+                                                    └─> Phase 5 (fair-web / IONOS)   ← als Nächstes
                                                            ├─> Phase 6 (Variance Management)
                                                            │      └─> Phase 7 (Decision Support)
                                                            │             └─> Phase 9 (RCA)
@@ -309,7 +297,7 @@ Phase 0 (Fundament) ✅
                                                            └─> Phase 11 (Opportunity Analysis)
 ```
 
-Phase 0+1 sind nicht verhandelbar (Korrektheit). Phase 4 kann jederzeit begonnen werden, der Rechenkern liefert bereits alles Nötige.
+Phase 0+1 sind nicht verhandelbar (Korrektheit).
 
 Die Reihenfolge 6 → 7 → 9 ist inhaltlich zwingend (DS wirkt über VM; RCA-Remedies sind fast immer VM-/DS-Controls). Die Phasen 8, 10 und 11 hängen dagegen nur
 lose an ihren Vorgängern und könnten vorgezogen werden:

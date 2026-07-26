@@ -6,6 +6,8 @@ Zeigt den korrekten FAIR-CAM-Aufbau:
 mit Susceptibility = Π (1 - OpEffᵢ) über die resistiven Controls.
 """
 
+from pathlib import Path
+
 from pyfair_cam import (
     BetaPert,
     FairCamModel,
@@ -59,3 +61,8 @@ report.print_summary()
 lec = report.get_lec()
 print("Loss Exceedance Curve (erste 5 Zeilen):")
 print(lec.head())
+
+# 7. HTML-Report (Phase 4) – eigenständige, offline lauffähige Datei.
+out_path = Path(__file__).with_name("basic_simulation_report.html")
+report.to_html(str(out_path))
+print(f"\nHTML-Report geschrieben: {out_path}")

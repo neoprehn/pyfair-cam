@@ -25,12 +25,14 @@ class FairCamSimulator:
         self.seed = seed
         self._results = None      # np.ndarray der Risiko-Samples
         self._components = None    # dict mit allen Zwischengrößen
+        self.model = None           # zuletzt simuliertes FairCamModel (für Reports)
 
     def run(self, model) -> np.ndarray:
         """Startet die Simulation und gibt die Risiko-Samples zurück."""
         rng = np.random.default_rng(self.seed)
         self._components = model.calculate(self.n_simulations, rng)
         self._results = self._components["risk"]
+        self.model = model
         return self._results
 
     def get_results(self) -> np.ndarray:

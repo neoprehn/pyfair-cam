@@ -89,6 +89,8 @@ etwas geringere Coverage, weil Verschlüsselungsvorgänge schwerer in Echtzeit z
   "full_impact"?), die Loss-Exceedance-Curve (LEC) und die mittlere Response-Zeit.
 """
 
+from pathlib import Path
+
 import numpy as np
 
 from pyfair_cam import (
@@ -190,7 +192,7 @@ simulator.run(model)
 report = FairCamReport(simulator)
 report.print_summary()
 
-# 6. Outcome-Klassen-Verteilung (Diagnose, noch nicht Teil des Reports – Phase 4)
+# 6. Outcome-Klassen-Verteilung (Diagnose; steckt seit Phase 4 auch im HTML-Report, siehe unten)
 components = simulator.get_components()
 outcome_class = components["outcome_class"]
 print("Outcome-Klassen-Verteilung:")
@@ -205,3 +207,12 @@ print(lec.head())
 # 7. Response-Zeit separat (Reporting-only, nicht Teil der Risk-Berechnung)
 rt = detection_response.response_time(20_000, np.random.default_rng(42))
 print(f"\nMittlere Response-Zeit (Containment+Resilience, Concurrency ~0.4): {rt.mean():.1f} Tage")
+
+# 8. HTML-Report (Phase 4) – eigenständige, offline lauffähige Datei mit LEC,
+#    Verteilung, Control-Wirksamkeit, Outcome-Klassen und LM-Vorher/Nachher.
+#    threat_capability aktiviert zusätzlich das Pfad-A/B-Panel, aber nur wenn
+#    das optionale pyfair-Paket installiert ist (siehe to_pyfair()/ROADMAP.md) -
+#    sonst wird der Parameter einfach ignoriert.
+out_path = Path(__file__).with_name("ransomware_scenario_report.html")
+report.to_html(str(out_path), threat_capability=BetaPert(low=0.2, mode=0.4, high=0.8))
+print(f"\nHTML-Report geschrieben: {out_path}")
