@@ -50,24 +50,36 @@ Ziel: pyfair-cam liefert die abgeleiteten Parameter an pyfair und nutzt dessen M
       `FairCamModel`, delegiert an die Adapter-Funktion.
       - **Pfad Vuln (A) ✅ implementiert:** `Susc = 1 − OpEff` (kombiniert über alle
         Controls) direkt als `Vulnerability`-Rohdaten an pyfair.
-      - **Pfad CS (B):** noch **nicht implementiert** — `to_pyfair(mode="cs")` wirft
-        bewusst `NotImplementedError` (kein stiller Falsch-Rechner), da die
-        Kalibrierungsfrage unten offen ist.
-- [ ] **Kalibrierungsfrage lösen (Umrechnungsschicht):** saubere/dokumentierte Abbildung
-      `OpEff → RS-Perzentil` finden, sodass Pfad A und B unter gegebener
-      TCap-Verteilung dieselbe resultierende Vulnerability liefern (numerisch,
-      annahmebehaftet — siehe Abschnitt „Offene Architektur-Entscheidung" unten).
-      Ohne das liefern A/B unterschiedliche Ergebnisse bei identischen Controls.
-      Voraussetzung für Pfad CS (B).
-- [x] **Validierung (Pfad A):** `tests/test_adapter.py` —
-      ohne Controls (`Susceptibility ≡ 1`) liefert der pyfair-Weg exakt (`assert_allclose`)
-      dieselbe Risk-Verteilung wie `FairCamModel.calculate()`; mit Controls stimmt
-      `Vulnerability` in pyfair 1:1 mit der CAM-Susceptibility überein, und der
-      mittlere Risk sinkt gegenüber dem controllosen Baseline-Modell.
-      Für Pfad B noch offen (hängt an der Kalibrierungsfrage).
+      - **Pfad CS (B) ✅ implementiert (pragmatisch, unkalibriert):** `CS = 1 − Susc`
+        tritt gegen eine separat übergebene `threat_capability`-Verteilung an
+        (FAIR-CAM modelliert TCap nicht selbst) — pyfair berechnet `Vulnerability`
+        über seinen **eigenen nativen Step-Vergleich** (`model_calc.py`). Siehe
+        Kalibrierungsfrage unten für die bewusste Entscheidung, A und B *nicht*
+        aufeinander abzustimmen.
+- [x] **Kalibrierungsfrage — pragmatisch entschieden (2026-07-26), nicht gelöst:**
+      Statt eine Abbildung `OpEff → RS-Perzentil` zu suchen, die A und B numerisch
+      synchron macht, wird die Abweichung bewusst **akzeptiert**: Pfad B simuliert
+      auf CS/TCap-Ebene (pyfairs nativer Mechanismus) und rechnet erst danach auf
+      Susceptibility/Vulnerability-Ebene hoch — das darf von Pfad A abweichen. Wer
+      Konsistenz mit Pfad A braucht, bleibt einfach auf Pfad A (CS/TCap unangetastet).
+      **Offener Punkt für später:** eine dritte, *explizit kalibrierte* Variante, die
+      beide Pfade synchron macht, ist als möglicher zukünftiger Task vermerkt (siehe
+      „Offene Punkte / spätere Entscheidungen" unten), aber nicht Teil von Phase 3.
+- [x] **Validierung:** `tests/test_adapter.py` — Pfad A: ohne Controls
+      (`Susceptibility ≡ 1`) liefert der pyfair-Weg exakt (`assert_allclose`) dieselbe
+      Risk-Verteilung wie `FairCamModel.calculate()`; mit Controls stimmt `Vulnerability`
+      in pyfair 1:1 mit der CAM-Susceptibility überein, mittlerer Risk sinkt gegenüber
+      dem controllosen Baseline-Modell. Pfad B: `Control Strength`/`Threat Capability`
+      kommen korrekt in pyfair an, ohne Controls ist `Vulnerability` **nahe** (nicht
+      exakt) 1 — dokumentiert bewusst die Abweichung zu Pfad A statt Gleichheit zu
+      behaupten.
 - [ ] **Variance Management (VM) & Decision Support (DS)** als Modifikatoren auf
       Reliability/Decision-Quality (optional, kann nach Phase 4 rutschen).
-- [ ] End-to-End-Test: vollständiges Szenario (z.B. Ransomware) durchrechnen.
+- [x] **End-to-End-Test:** `tests/test_end_to_end.py` — vollständiges
+      Ransomware-Szenario (Resistive Control + 6-stufige Detection/Response-Kill-Chain,
+      wie `examples/ransomware_scenario.py`) über `to_pyfair(mode="vuln")` gerechnet,
+      inkl. Prüfung der Outcome-Klassen-Verteilung als Datengrundlage für die spätere
+      Parallel-Anzeige (Phase 4).
 
 ---
 
@@ -114,13 +126,21 @@ Ziel: pyfair-cam als Library in der Django-App nutzbar.
 
 ## Offene Architektur-Entscheidung: Andockpunkt FAIR ↔ FAIR-CAM
 
-> **Mechanismus entschieden (2026-07-25), finaler Default noch offen.** Es wird eine
-> **Umrechnungsschicht (Variante C)** gebaut, die sowohl A (Vulnerability direkt) als
-> auch B (CS/RS über pyfairs nativen Step) unterstützt. Welche der beiden **Default**
-> bzw. **einzig sichtbare Option** in fair-web wird, entscheidet sich erst später —
-> geplant als **Admin-Einstellung** (analog `AppKonfiguration` in fair-web), die zur
-> Laufzeit zwischen Andockpunkt Vuln/CS umschaltet. Der Rechenkern (`core.py`) bleibt
-> davon unberührt, siehe unten.
+> **Mechanismus entschieden (2026-07-25), Kalibrierung pragmatisch abgehakt
+> (2026-07-26), finaler Default noch offen.** Beide Pfade (A: Vulnerability
+> direkt, B: CS/RS über pyfairs nativen Step) sind implementiert
+> (`to_pyfair(mode="vuln"|"cs")`) — **bewusst unkalibriert**: statt die
+> Umrechnung `OpEff → RS-Perzentil` zu lösen, akzeptiert Pfad B einfach, dass
+> er (weil er auf CS/TCap-Ebene simuliert und erst danach auf
+> Susceptibility/Vuln hochrechnet) andere Zahlen liefern kann als Pfad A. Wer
+> Konsistenz mit Pfad A will, bleibt auf Pfad A. Eine **dritte, explizit
+> kalibrierte Variante**, die beide synchron macht, ist als möglicher
+> zukünftiger Task vermerkt (siehe „Offene Punkte" unten), aber nicht gebaut.
+> Welcher Pfad in fair-web **Default** bzw. **einzig sichtbare Option** wird,
+> entscheidet sich weiterhin erst später — geplant als **Admin-Einstellung**
+> (analog `AppKonfiguration` in fair-web), die zur Laufzeit zwischen
+> Andockpunkt Vuln/CS umschaltet. Der Rechenkern (`core.py`) bleibt davon
+> unberührt, siehe unten.
 
 **Worum geht es?**
 FAIR-CAM kann an zwei verschiedenen Stellen der FAIR-Taxonomie andocken. Beide sind
@@ -135,30 +155,34 @@ FAIR-Frequenzseite:
 
 | | **Variante A — an Susceptibility** | **Variante B — an CS/RS** |
 |---|---|---|
-| **Andockpunkt** | `Susc = 1 − OpEff` direkt (aktueller Stand) | OpEff → CS/RS-Wert, dann pyfairs TCap-vs-CS-Step |
+| **Andockpunkt** | `Susc = 1 − OpEff` direkt (aktueller Stand) | `CS = 1 − Susc`, dann pyfairs TCap-vs-CS-Step |
 | **Quelle** | FAIR-CAM-Knowledge-Base (`01_..Core_Concepts.md`) schreibt das so vor | natives FAIR / pyfair (`model_calc.py._calculate_step_average`) |
 | **Pro** | KB-konform; erfasst Reliability, Coverage, Variance direkt | erhält FAIRs nativen TCap-vs-CS-Wettstreit; nutzt pyfair-Engine unverändert |
-| **Contra** | umgeht pyfairs nativen Vulnerability-Mechanismus | OpEff muss als RS-Perzentil ausgedrückt werden; weicht von KB ab |
+| **Contra** | umgeht pyfairs nativen Vulnerability-Mechanismus | Ergebnis kann von Pfad A abweichen (bewusst in Kauf genommen, siehe unten) |
 
-**Variante C — beide / Umrechnung (zu erforschen).**
-Idee: eine **Übersetzungsschicht**, die `OpEff` ↔ `CS/RS` (bzw. TCap-Perzentil)
-ineinander umrechnet, sodass der Nutzer wählen kann, an welcher Stelle er andockt —
-oder sodass FAIR-CAM-Controls in ein bestehendes pyfair-Modell „eingespeist" werden,
-ohne dessen native Susceptibility-Logik zu verlieren.
-- Offene Forschungsfrage: Gibt es eine saubere Abbildung `OpEff → RS-Perzentil`?
-  (OpEff ist „Anteil abgewehrter Events" auf 0–1; RS ist ein Perzentil relativ zur
-  Threat-Community — die Skalen sind nicht trivial deckungsgleich.)
-- Evtl. Kalibrierung: Welcher RS-Perzentilwert erzeugt unter gegebener TCap-Verteilung
-  dieselbe Vulnerability wie `1 − OpEff`? → numerisch lösbar, aber annahmebehaftet.
+**Kalibrierungsfrage — pragmatisch entschieden statt gelöst (2026-07-26).**
+Ursprüngliche Idee war eine **Übersetzungsschicht**, die `OpEff → RS-Perzentil` so
+umrechnet, dass Pfad A und B bei identischen Controls dieselbe Vulnerability liefern.
+Die Skalen sind aber nicht trivial deckungsgleich (OpEff = „Anteil abgewehrter
+Events" auf 0–1; RS = Perzentil relativ zur Threat-Community), und eine belastbare
+Abbildung wäre eine eigene Forschungsfrage. Entscheidung: **nicht lösen, sondern
+akzeptieren.** `to_pyfair(mode="cs")` nutzt `CS = 1 − Susc` direkt als
+Control-Strength-Perzentil und lässt pyfair nativ dagegen simulieren — ohne
+Anspruch, mit Pfad A übereinzustimmen. Wer identische Ergebnisse zu Pfad A braucht,
+nutzt Pfad A (Vuln) und lässt CS/TCap unangetastet.
+- **Offener Punkt für später:** eine dritte, *explizit kalibrierte* Variante
+  (numerisch gelöst, annahmebehaftet), die A und B synchron macht, könnte man bauen,
+  falls sich das als nötig erweist — kein aktueller Task, nur vorgemerkt.
 
 **Aktueller Stand:** Die Library implementiert intern weiterhin nur **Susceptibility
-= 1 − OpEff** (KB-konform) — das ändert sich nicht. **Phase 3** soll beide
-Adapter-Pfade (A und B) auf Basis dieser Susceptibility bauen; bislang ist nur
-**Pfad A** (`to_pyfair(mode="vuln")`) implementiert und getestet, Pfad B wartet auf
-die Kalibrierungsfrage (siehe oben). Die Wahl, welcher Pfad in fair-web tatsächlich
-genutzt wird, fällt erst bei der Web-Integration (Phase 5) und betrifft NUR den
-Adapter/die Admin-Einstellung — der Rechenkern (`core.py`) bleibt in allen Varianten
-gleich.
+= 1 − OpEff** (KB-konform) — das ändert sich nicht. **Phase 3** liefert darauf
+aufbauend beide Adapter-Pfade: **Pfad A** (`to_pyfair(mode="vuln")`, KB-konform,
+identisch zu `calculate()`) und **Pfad B** (`to_pyfair(mode="cs")`, pyfairs nativer
+Mechanismus, erfordert eine separat übergebene `threat_capability`-Verteilung, da
+FAIR-CAM TCap nicht selbst modelliert). Die Wahl, welcher Pfad in fair-web
+tatsächlich genutzt wird, fällt erst bei der Web-Integration (Phase 5) und betrifft
+NUR den Adapter/die Admin-Einstellung — der Rechenkern (`core.py`) bleibt in allen
+Varianten gleich.
 
 **Rechenprinzip (2026-07-25, gilt für Frequenz-Seite CF/PoA/Vulnerability):**
 FAIR-CAM-Controls (Avoidance, Deterrence, Resistance) sind per Definition reine
@@ -246,9 +270,11 @@ parallel zu Phase 2/3 begonnen werden, sobald der Rechenkern erste Ergebnisse li
 
 ## Offene Punkte / spätere Entscheidungen
 
-- **Andockpunkt FAIR ↔ FAIR-CAM:** Mechanismus entschieden (Umrechnungsschicht, beide
-  Pfade A+B), Default/Admin-Wahl noch offen — siehe eigener Abschnitt oben.
-  *Wichtigste offene Frage bleibt die `OpEff → RS-Perzentil`-Kalibrierung.*
+- **Andockpunkt FAIR ↔ FAIR-CAM:** beide Pfade A+B implementiert, bewusst
+  unkalibriert (siehe eigener Abschnitt oben); Default/Admin-Wahl noch offen (Phase 5).
+- **Kalibrierte dritte Variante (Pfad A ↔ Pfad B synchron):** vorgemerkt, aber kein
+  aktueller Task — nur bauen, falls sich Inkonsistenz zwischen den Pfaden in der
+  Praxis als echtes Problem erweist (siehe „Offene Architektur-Entscheidung" oben).
 - **Rechenprinzip LM-Seite:** entschieden (Parallel-Anzeige statt Ersatz, siehe
   eigener Abschnitt oben) — offen ist nur noch die Umsetzung in Phase 4/5.
 - VM- und DS-Domänen: voller Umfang oder zunächst vereinfacht?

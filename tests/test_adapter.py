@@ -1,10 +1,14 @@
 """
-Tests für den to_pyfair()-Adapter (Phase 3, Pfad "vuln" / A).
+Tests für den to_pyfair()-Adapter (Phase 3, Pfad "vuln"/A und "cs"/B).
 
 ``pyfair`` ist eine optionale Abhängigkeit (Extra ``pyfair-cam[pyfair]``) –
 Tests, die es tatsächlich importieren, werden übersprungen, wenn es nicht
 installiert ist. Die reine Validierung (mode-Fehler) läuft immer, da sie
 pyfair gar nicht erst importiert.
+
+Pfad A und Pfad B sind bewusst nicht kalibriert (siehe
+pyfair_cam/adapter/to_pyfair.py Modul-Docstring und ROADMAP.md) – die
+Pfad-B-Tests prüfen deshalb Plausibilität, nicht Übereinstimmung mit Pfad A.
 """
 
 import numpy as np
@@ -43,9 +47,9 @@ def test_unknown_mode_raises_value_error():
         model.to_pyfair(mode="not-a-mode")
 
 
-def test_cs_mode_raises_not_implemented():
+def test_cs_mode_without_threat_capability_raises_value_error():
     model = create_model_without_controls()
-    with pytest.raises(NotImplementedError):
+    with pytest.raises(ValueError):
         model.to_pyfair(mode="cs")
 
 
@@ -87,3 +91,55 @@ def test_pyfair_vulnerability_matches_cam_susceptibility():
 
     pyfair_vuln = fair_model.export_results()["Vulnerability"].to_numpy()
     np.testing.assert_allclose(pyfair_vuln, cam_result["susceptibility"])
+
+
+# --- Pfad CS/B -------------------------------------------------------------
+
+
+def test_cs_mode_feeds_control_strength_and_threat_capability():
+    model = create_model_with_control()
+    fair_model, cam_result = model.to_pyfair(
+        mode="cs", random_seed=5, threat_capability=BetaPert(low=0.2, mode=0.4, high=0.8)
+    )
+
+    results = fair_model.export_results()
+    expected_cs = 1.0 - cam_result["susceptibility"]
+    np.testing.assert_allclose(results["Control Strength"].to_numpy(), expected_cs)
+    assert results["Threat Capability"].notna().all()
+    assert (results["Threat Capability"] >= 0).all()
+
+
+def test_cs_mode_without_controls_is_almost_fully_vulnerable():
+    """Ohne Controls ist Control Strength = 0 für jeden Trial -> pyfairs
+    natives Vulnerability = mean(CS < TCap) sollte nahe 1 liegen (nicht
+    zwingend exakt 1 wie bei Pfad A, siehe Modul-Docstring: A und B sind
+    bewusst nicht kalibriert)."""
+    model = create_model_without_controls()
+    fair_model, cam_result = model.to_pyfair(
+        mode="cs", random_seed=11, threat_capability=BetaPert(low=0.2, mode=0.5, high=0.9)
+    )
+
+    assert np.all((1.0 - cam_result["susceptibility"]) == 0.0)
+    pyfair_vuln = fair_model.export_results()["Vulnerability"].to_numpy()
+    assert np.all(pyfair_vuln > 0.95)
+
+
+def test_cs_mode_can_diverge_from_vuln_mode():
+    """Dokumentiert die bewusste Design-Entscheidung: Pfad A und Pfad B sind
+    nicht kalibriert und dürfen für dieselben Controls unterschiedliche
+    Risk-Verteilungen liefern (siehe ROADMAP.md 'Offene
+    Architektur-Entscheidung', Entscheidung 2026-07-26)."""
+    model = create_model_with_control()
+
+    vuln_fair, _ = model.to_pyfair(mode="vuln", random_seed=9)
+    cs_fair, _ = model.to_pyfair(
+        mode="cs", random_seed=9, threat_capability=BetaPert(low=0.2, mode=0.4, high=0.8)
+    )
+
+    vuln_risk_mean = vuln_fair.export_results()["Risk"].mean()
+    cs_risk_mean = cs_fair.export_results()["Risk"].mean()
+    # Kein assert auf Gleichheit oder Ungleichheit einer bestimmten Richtung -
+    # der Test dokumentiert nur, dass beide Pfade unabhängig voneinander
+    # valide, plausible (positive) Ergebnisse liefern.
+    assert vuln_risk_mean > 0
+    assert cs_risk_mean > 0
