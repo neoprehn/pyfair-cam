@@ -26,6 +26,8 @@ from ..core import (
     effective_parameter,
     reviews_per_stage,
     stage_detection_probability,
+)
+from ..core import (
     response_time as _response_time,
 )
 from ..simulator.distributions import as_distribution

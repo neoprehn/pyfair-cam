@@ -4,3 +4,7 @@ pandas>=2.0.0
 matplotlib>=3.7.0
 plotly>=5.18.0
 pytest>=8.0.0
+
+# Optional: to_pyfair()-Adapter (Phase 3). Nicht in dieser Datei enthalten,
+# da pyfair-cam selbst pyfair-frei bleibt (siehe ROADMAP.md). Installation:
+#   pip install -e .[pyfair]

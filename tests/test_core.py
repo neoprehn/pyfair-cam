@@ -9,17 +9,17 @@ import numpy as np
 import pytest
 
 from pyfair_cam import (
-    reliability,
-    operational_efficacy,
     combined_susceptibility,
+    detection_within_time,
     effective_parameter,
+    expected_gross_loss,
+    operational_efficacy,
+    pert_mean,
+    progression_reach_probability,
+    reliability,
+    response_time,
     reviews_per_stage,
     stage_detection_probability,
-    progression_reach_probability,
-    response_time,
-    pert_mean,
-    expected_gross_loss,
-    detection_within_time,
 )
 
 

@@ -19,7 +19,7 @@ Efficacy (OpEff). Mehrere Controls werden im Modell über die OR-Logik
 
 import numpy as np
 
-from ..core import reliability, operational_efficacy
+from ..core import operational_efficacy, reliability
 from ..simulator.distributions import as_distribution
 
 

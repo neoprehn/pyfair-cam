@@ -11,9 +11,10 @@ Reproduzierbarkeit:
     Es wird nie ``np.random.seed()`` (globaler Zustand) verwendet.
 """
 
+from typing import Optional
+
 import numpy as np
 import pandas as pd
-from typing import Optional
 
 
 class FairCamSimulator:

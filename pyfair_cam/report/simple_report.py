@@ -23,7 +23,7 @@ class FairCamReport:
         """Gibt eine lesbare Zusammenfassung aus."""
         stats = self.simulator.get_statistics()
         print(f"\n{'='*50}")
-        print(f"  FAIR-CAM Simulationsergebnisse")
+        print("  FAIR-CAM Simulationsergebnisse")
         print(f"{'='*50}")
         components = self.simulator.get_components()
         mean_susc = float(components['susceptibility'].mean())

@@ -4,10 +4,14 @@
 > die — analog zu `pyfair` — lokal lauffähig ist und einen eigenen HTML-Report
 > erzeugt. Web-Integration in `fair.neoprehn.de` (fair-web) erfolgt **danach**.
 >
-> **Engine-Strategie (aktualisiert):** pyfair-cam ist eine **eigenständige,
-> unabhängige Bibliothek** mit eigener Monte-Carlo-Engine. KEINE pyfair-Dependency.
-> Die Integration von FAIR und FAIR-CAM erfolgt erst auf Anwendungsebene in
-> **fair-web** (fair.neoprehn.de), nicht in dieser Library.
+> **Engine-Strategie (aktualisiert, präzisiert 2026-07-26):** pyfair-cam ist eine
+> **eigenständige, unabhängige Bibliothek** mit eigener Monte-Carlo-Engine. KEINE
+> harte pyfair-Dependency im Core-Install. Der `to_pyfair()`-Adapter (Phase 3)
+> lebt trotzdem *in* pyfair-cam, aber pyfair ist dafür nur eine **optionale
+> Extra-Dependency** (`pip install pyfair-cam[pyfair]`, lazy import). Wer nur die
+> CAM-Engine nutzt, installiert nichts von pyfair mit. Die eigentliche
+> *Anwendungs*-Integration (Admin-Umschaltung Vuln/CS, UI) bleibt Sache von
+> **fair-web** (Phase 5).
 
 Erledigtes (Phasen 0–2) steht kompakt unten und im Detail in `ROADMAP-ARCHIV.md`.
 
@@ -15,10 +19,10 @@ Erledigtes (Phasen 0–2) steht kompakt unten und im Detail in `ROADMAP-ARCHIV.m
 
 ## Stand — was erledigt ist (Details in `ROADMAP-ARCHIV.md`)
 
-**Phase 0 — Fundament & Korrektur:** RNG-/Seed-Bug behoben (`np.random.default_rng`,
+**Phase 0 — Fundament & Korrektur ✅:** RNG-/Seed-Bug behoben (`np.random.default_rng`,
 kein `.seed()` mehr pro Sample), Distribution-Interface vereinheitlicht,
-pyfair-Dependency entfernt, Statistik-Tests grün (19 Tests). **Offen:** CI
-(GitHub Actions) — siehe unten.
+pyfair-Dependency entfernt, Statistik-Tests grün. CI (GitHub Actions:
+`ruff` + `pytest` bei jedem Push/PR auf `main`) eingerichtet.
 
 **Phase 1 — FAIR-CAM Rechenkern ✅:** `ResistiveControl`-Datenmodell, Reliability
 (`Rel`), Operational Efficacy (`OpEff`), Defense-in-Depth/Susceptibility
@@ -31,30 +35,36 @@ Distributions, Response Time, Detection-SLO-Alignment. 52 Tests grün.
 
 ---
 
-### Als Nächstes → Rest Phase 0
-- [ ] **CI aufsetzen** (GitHub Actions): `pytest` + `ruff`/`flake8` bei jedem Push.
-
----
-
 ## Phase 3 — pyfair-Integration (Übergabe an FAIR-Engine)
 
 Ziel: pyfair-cam liefert die abgeleiteten Parameter an pyfair und nutzt dessen MC.
 
-- [ ] **Adapter-Schicht:** CAM-Ergebnisse → pyfair-Inputs
-      (TEF via Avoidance/Deterrence, Susceptibility via Resistance, LM via Detection/Response).
-- [ ] **`FairCamModel.to_pyfair(mode="vuln"|"cs")`** — baut ein pyfair-`Model` aus den
-      CAM-Parametern, mit zwei Andock-Pfaden:
-      - **Pfad Vuln (A):** `Susc = 1 − OpEff` direkt auf `model.input_data('Vulnerability', …)`.
-      - **Pfad CS (B):** `OpEff → RS-Perzentil`-Umrechnung, dann
-        `model.input_data('Control Strength', …)` + `'Threat Capability'` getrennt —
-        pyfair rechnet Vulnerability selbst über den nativen Step (`model_calc.py`).
+- [x] **Adapter-Schicht (Pfad Vuln/A):** `pyfair_cam/adapter/to_pyfair.py` — volle
+      Rohdatenarrays (TEF, Susceptibility, Loss Magnitude aus `calculate()`) werden
+      trialweise, ohne Mittelwertbildung, via `input_raw_data()` an ein natives
+      pyfair-`FairModel` übergeben (gleiche `n_simulations` auf beiden Seiten, wie
+      im Rechenprinzip unten gefordert). `pyfair` ist dabei nur optionale
+      Extra-Dependency (`pyfair-cam[pyfair]`, lazy import) — siehe Engine-Strategie
+      oben.
+- [x] **`FairCamModel.to_pyfair(mode="vuln"|"cs")`** — dünner Wrapper-Methode auf
+      `FairCamModel`, delegiert an die Adapter-Funktion.
+      - **Pfad Vuln (A) ✅ implementiert:** `Susc = 1 − OpEff` (kombiniert über alle
+        Controls) direkt als `Vulnerability`-Rohdaten an pyfair.
+      - **Pfad CS (B):** noch **nicht implementiert** — `to_pyfair(mode="cs")` wirft
+        bewusst `NotImplementedError` (kein stiller Falsch-Rechner), da die
+        Kalibrierungsfrage unten offen ist.
 - [ ] **Kalibrierungsfrage lösen (Umrechnungsschicht):** saubere/dokumentierte Abbildung
       `OpEff → RS-Perzentil` finden, sodass Pfad A und B unter gegebener
       TCap-Verteilung dieselbe resultierende Vulnerability liefern (numerisch,
       annahmebehaftet — siehe Abschnitt „Offene Architektur-Entscheidung" unten).
       Ohne das liefern A/B unterschiedliche Ergebnisse bei identischen Controls.
-- [ ] **Validierung:** identische Inputs ohne Controls → CAM-Ergebnis == reines pyfair
-      (für beide Pfade).
+      Voraussetzung für Pfad CS (B).
+- [x] **Validierung (Pfad A):** `tests/test_adapter.py` —
+      ohne Controls (`Susceptibility ≡ 1`) liefert der pyfair-Weg exakt (`assert_allclose`)
+      dieselbe Risk-Verteilung wie `FairCamModel.calculate()`; mit Controls stimmt
+      `Vulnerability` in pyfair 1:1 mit der CAM-Susceptibility überein, und der
+      mittlere Risk sinkt gegenüber dem controllosen Baseline-Modell.
+      Für Pfad B noch offen (hängt an der Kalibrierungsfrage).
 - [ ] **Variance Management (VM) & Decision Support (DS)** als Modifikatoren auf
       Reliability/Decision-Quality (optional, kann nach Phase 4 rutschen).
 - [ ] End-to-End-Test: vollständiges Szenario (z.B. Ransomware) durchrechnen.
@@ -142,11 +152,13 @@ ohne dessen native Susceptibility-Logik zu verlieren.
   dieselbe Vulnerability wie `1 − OpEff`? → numerisch lösbar, aber annahmebehaftet.
 
 **Aktueller Stand:** Die Library implementiert intern weiterhin nur **Susceptibility
-= 1 − OpEff** (KB-konform) — das ändert sich nicht. Neu ist, dass **Phase 3** beide
-Adapter-Pfade (A und B) auf Basis dieser Susceptibility baut, statt nur A. Die Wahl,
-welcher Pfad in fair-web tatsächlich genutzt wird, fällt erst bei der Web-Integration
-(Phase 5) und betrifft NUR den Adapter/die Admin-Einstellung — der Rechenkern
-(`core.py`) bleibt in allen Varianten gleich.
+= 1 − OpEff** (KB-konform) — das ändert sich nicht. **Phase 3** soll beide
+Adapter-Pfade (A und B) auf Basis dieser Susceptibility bauen; bislang ist nur
+**Pfad A** (`to_pyfair(mode="vuln")`) implementiert und getestet, Pfad B wartet auf
+die Kalibrierungsfrage (siehe oben). Die Wahl, welcher Pfad in fair-web tatsächlich
+genutzt wird, fällt erst bei der Web-Integration (Phase 5) und betrifft NUR den
+Adapter/die Admin-Einstellung — der Rechenkern (`core.py`) bleibt in allen Varianten
+gleich.
 
 **Rechenprinzip (2026-07-25, gilt für Frequenz-Seite CF/PoA/Vulnerability):**
 FAIR-CAM-Controls (Avoidance, Deterrence, Resistance) sind per Definition reine

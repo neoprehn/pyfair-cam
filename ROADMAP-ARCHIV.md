@@ -38,9 +38,13 @@ Ziel: Der bestehende Code rechnet *korrekt* und reproduzierbar, bevor Features k
 - [x] **Unabhängigkeit hergestellt:** pyfair-Dependency entfernt (`requirements.txt`).
 - [x] **Statistik-Tests:** Seed-Reproduzierbarkeit, verschiedene Seeds unterscheiden sich,
       TEF/LM-Unkorreliertheit (corr < 0.05) → Seed-Bug nachweislich behoben.
+- [x] **CI (GitHub Actions):** `.github/workflows/ci.yml` — `ruff check .` +
+      `pytest` bei jedem Push/PR auf `main`. Lint-Regeln in `pyproject.toml`
+      (`E4, E7, E9, F, I`; `F401` in `__init__.py` ausgenommen, da dort
+      Re-Exports der Package-API bewusst ungenutzt importiert werden).
 
-**Status:** `pytest` grün (19 Tests), RNG reproduzierbar & statistisch sauber.
-Offener Rest (CI) steht in `ROADMAP.md`.
+**Status:** `pytest` grün (56 Tests), `ruff check .` sauber, RNG reproduzierbar
+& statistisch sauber. Phase 0 vollständig abgeschlossen.
 
 ---
 

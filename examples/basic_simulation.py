@@ -7,12 +7,12 @@ mit Susceptibility = Π (1 - OpEffᵢ) über die resistiven Controls.
 """
 
 from pyfair_cam import (
-    FairCamModel,
-    FairCamSimulator,
     BetaPert,
+    FairCamModel,
+    FairCamReport,
+    FairCamSimulator,
     LogNormal,
     ResistiveControl,
-    FairCamReport,
 )
 
 # 1. Modell: Ransomware-Szenario

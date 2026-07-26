@@ -116,3 +116,16 @@ class FairCamModel:
         result["loss_magnitude"] = lm
         result["risk"] = lef * lm
         return result
+
+    def to_pyfair(self, mode="vuln", n_simulations=None, random_seed=42):
+        """Baut ein pyfair-``FairModel`` aus diesem CAM-Modell.
+
+        Dünner Wrapper um :func:`pyfair_cam.adapter.to_pyfair`. Benötigt das
+        optionale ``pyfair``-Paket (Extra ``pyfair-cam[pyfair]``) – siehe
+        dort für Details, Parameter und Rückgabewert.
+        """
+        from ..adapter.to_pyfair import to_pyfair as _to_pyfair
+
+        return _to_pyfair(
+            self, mode=mode, n_simulations=n_simulations, random_seed=random_seed
+        )

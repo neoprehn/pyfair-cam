@@ -4,14 +4,15 @@ Tests für FairCamModel und FairCamSimulator (Integration / Verhalten).
 
 import numpy as np
 import pytest
+
 from pyfair_cam import (
+    BetaPert,
+    DetectionResponseFactor,
     FairCamModel,
     FairCamSimulator,
-    BetaPert,
     LogNormal,
     ResistiveControl,
     Stage,
-    DetectionResponseFactor,
 )
 
 

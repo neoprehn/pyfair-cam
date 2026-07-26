@@ -134,14 +134,14 @@ zu fassen sind als z.B. Persistence-Mechanismen).
 import numpy as np
 
 from pyfair_cam import (
-    FairCamModel,
-    FairCamSimulator,
     BetaPert,
+    DetectionResponseFactor,
+    FairCamModel,
+    FairCamReport,
+    FairCamSimulator,
     Poisson,
     ResistiveControl,
     Stage,
-    DetectionResponseFactor,
-    FairCamReport,
 )
 
 # 1. Sechs Kill-Chain-Stufen (Parameter aus dem KB-Beispiel:

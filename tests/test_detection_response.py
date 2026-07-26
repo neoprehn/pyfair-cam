@@ -6,13 +6,13 @@ import numpy as np
 import pytest
 
 from pyfair_cam import (
-    Stage,
-    DetectionResponseFactor,
     BetaPert,
     Constant,
-    stage_detection_probability,
+    DetectionResponseFactor,
+    Stage,
     effective_parameter,
     reviews_per_stage,
+    stage_detection_probability,
 )
 
 # KB-Stage-1-Zeile (04_Detection_Response_Measurement.md), alles PointEstimate
