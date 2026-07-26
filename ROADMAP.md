@@ -56,6 +56,29 @@ Ziel: pyfair-cam liefert die abgeleiteten Parameter an pyfair und nutzt dessen M
         über seinen **eigenen nativen Step-Vergleich** (`model_calc.py`). Siehe
         Kalibrierungsfrage unten für die bewusste Entscheidung, A und B *nicht*
         aufeinander abzustimmen.
+      - **Wichtiger Fund (2026-07-26): pyfairs native Vulnerability ist EIN
+        Skalar, kein Wert pro Trial.** `_calculate_step_average()` in
+        `pyfair/model_calc.py` bildet `mean(CS < TCap)` über **alle** n Trials
+        und legt diesen einen Mittelwert dann auf jeden einzelnen Trial —
+        empirisch verifiziert (`tests/test_adapter.py::test_compare_paths_
+        documents_variance_collapse_in_cs_path`: `Vulnerability.nunique() == 1`).
+        Pfad B verliert dadurch strukturell die trialweise
+        Susceptibility-Streuung, die Pfad A bewusst erhält (vgl. "Rechenprinzip"
+        unten, das genau das für den *Adapter* verbietet — hier passiert es aber
+        *innerhalb von pyfairs eigenem Rechenkern*, nicht im Adapter). Folge:
+        `std(Risk)` ist in Pfad B strukturell kleiner als in Pfad A, unabhängig
+        von der Konfidenz/Breite der CS-Eingangsverteilung — eine engere
+        CS-Verteilung verschiebt nur den einen Vulnerability-Skalar, stellt die
+        verlorene Trial-Varianz aber nicht wieder her. Tails/VaR aus Pfad B sind
+        entsprechend vorsichtig zu interpretieren.
+      - **`compare_paths()` / `FairCamModel.compare_pyfair_paths()`
+        (Parallel-Anzeige):** rechnet Pfad A und Pfad B mit demselben Seed
+        (identische TEF/Susceptibility/LM-Trials) nebeneinander und liefert
+        beide `FairModel`-Instanzen plus eine `stats`-Tabelle
+        (mean/std/median/VaR95/VaR99/max je Pfad) — statt zu kalibrieren, macht
+        das die tatsächliche Abweichung (inkl. des Streuungs-Funds oben) auf
+        einen Blick sichtbar, analog zur "Parallel-Anzeige statt Ersatz"-
+        Entscheidung bei der LM-Seite (siehe unten).
 - [x] **Kalibrierungsfrage — pragmatisch entschieden (2026-07-26), nicht gelöst:**
       Statt eine Abbildung `OpEff → RS-Perzentil` zu suchen, die A und B numerisch
       synchron macht, wird die Abweichung bewusst **akzeptiert**: Pfad B simuliert
@@ -173,6 +196,13 @@ nutzt Pfad A (Vuln) und lässt CS/TCap unangetastet.
 - **Offener Punkt für später:** eine dritte, *explizit kalibrierte* Variante
   (numerisch gelöst, annahmebehaftet), die A und B synchron macht, könnte man bauen,
   falls sich das als nötig erweist — kein aktueller Task, nur vorgemerkt.
+- **Wichtig für diese spätere Kalibrierung:** Selbst eine perfekte
+  `OpEff → RS-Perzentil`-Abbildung würde nur den *Mittelwert* von Pfad B an Pfad A
+  angleichen — die Trial-Varianz bliebe kleiner, weil pyfairs natives
+  `Vulnerability = mean(CS < TCap)` ein einziger Skalar über alle Trials ist (siehe
+  Fund oben, Phase-3-Checkliste). Eine Kalibrierung, die auch die Streuung
+  angleicht, müsste an dieser Stelle in pyfair selbst ansetzen, nicht nur an der
+  CS-Eingangsverteilung.
 
 **Aktueller Stand:** Die Library implementiert intern weiterhin nur **Susceptibility
 = 1 − OpEff** (KB-konform) — das ändert sich nicht. **Phase 3** liefert darauf

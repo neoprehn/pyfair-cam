@@ -133,3 +133,19 @@ class FairCamModel:
             random_seed=random_seed,
             threat_capability=threat_capability,
         )
+
+    def compare_pyfair_paths(self, threat_capability, n_simulations=None, random_seed=42):
+        """Rechnet Pfad Vuln/A und Pfad CS/B nebeneinander (Parallel-Anzeige).
+
+        Dünner Wrapper um :func:`pyfair_cam.adapter.compare_paths`. Benötigt das
+        optionale ``pyfair``-Paket (Extra ``pyfair-cam[pyfair]``) – siehe dort
+        für Details, Parameter und Rückgabewert.
+        """
+        from ..adapter.to_pyfair import compare_paths as _compare_paths
+
+        return _compare_paths(
+            self,
+            threat_capability=threat_capability,
+            n_simulations=n_simulations,
+            random_seed=random_seed,
+        )

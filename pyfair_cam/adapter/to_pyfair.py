@@ -21,6 +21,7 @@ als offener Punkt in der Roadmap vermerkt, aber nicht Teil dieses Adapters.
 """
 
 import numpy as np
+import pandas as pd
 
 from ..model.cam_model import FairCamModel
 from ..simulator.distributions import as_distribution
@@ -115,3 +116,83 @@ def to_pyfair(
     fair_model.calculate_all()
 
     return fair_model, cam_result
+
+
+_COLLAPSE_NOTE = (
+    "Pfad B (CS) nutzt pyfairs natives Vulnerability = mean(CS < TCap): das ist "
+    "EIN Skalar über alle Trials, nicht ein Wert pro Trial (vgl. "
+    "model_calc.py._calculate_step_average). Die Streuung, die Pfad A durch die "
+    "trialweise variierende Susceptibility erhält, geht in Pfad B strukturell "
+    "verloren - std(cs) < std(vuln) ist deshalb erwartbar, nicht nur "
+    "kalibrierungsbedingt. Siehe ROADMAP.md 'Offene Architektur-Entscheidung'."
+)
+
+
+def compare_paths(cam_model: FairCamModel, threat_capability, n_simulations=None, random_seed=42):
+    """Rechnet Pfad Vuln/A und Pfad CS/B nebeneinander und stellt sie gegenüber.
+
+    Ersetzt keinen der beiden Pfade und kalibriert sie nicht aufeinander –
+    reine **Parallel-Anzeige** (analog zur "Rechenprinzip LM-Seite"-Entscheidung
+    für Detection/Response, siehe ROADMAP.md), damit man die tatsächliche
+    Abweichung zwischen beiden Andockpunkten auf einen Blick sieht, statt sie
+    zu vermuten.
+
+    Parameters
+    ----------
+    cam_model : FairCamModel
+    threat_capability : pyfair_cam Distribution oder Skalar
+        Wird nur für Pfad CS/B gebraucht (siehe :func:`to_pyfair`).
+    n_simulations, random_seed
+        Wie bei :func:`to_pyfair`; beide Pfade nutzen denselben Seed, damit
+        TEF/Susceptibility/LM auf beiden Seiten aus identischen Trials
+        stammen (nur die Vulnerability-Herleitung unterscheidet sich).
+
+    Returns
+    -------
+    dict
+        ``vuln_model``, ``cs_model`` (die beiden ``pyfair.FairModel``-Instanzen),
+        ``cam_result`` (CAM-``calculate()``-Ergebnis, identisch für beide Pfade
+        dank gleichem Seed), ``cs_vulnerability_scalar`` (der eine pyfair-native
+        Vulnerability-Skalar aus Pfad B), ``stats`` (``pandas.DataFrame`` mit
+        mean/std/median/VaR95/VaR99/max je Pfad) und ``note`` (Hinweis auf die
+        strukturelle Streuungs-Differenz, siehe Modul-Konstante oben).
+    """
+    vuln_model, cam_result = to_pyfair(
+        cam_model, mode="vuln", n_simulations=n_simulations, random_seed=random_seed
+    )
+    cs_model, _ = to_pyfair(
+        cam_model,
+        mode="cs",
+        n_simulations=n_simulations,
+        random_seed=random_seed,
+        threat_capability=threat_capability,
+    )
+
+    vuln_risk = vuln_model.export_results()["Risk"].to_numpy()
+    cs_risk = cs_model.export_results()["Risk"].to_numpy()
+    cs_vulnerability_scalar = float(cs_model.export_results()["Vulnerability"].iloc[0])
+
+    stats = pd.DataFrame(
+        {"vuln (Pfad A)": _risk_stats(vuln_risk), "cs (Pfad B)": _risk_stats(cs_risk)}
+    )
+    stats.index.name = "Kennzahl"
+
+    return {
+        "vuln_model": vuln_model,
+        "cs_model": cs_model,
+        "cam_result": cam_result,
+        "cs_vulnerability_scalar": cs_vulnerability_scalar,
+        "stats": stats,
+        "note": _COLLAPSE_NOTE,
+    }
+
+
+def _risk_stats(risk: np.ndarray) -> dict:
+    return {
+        "mean": float(np.mean(risk)),
+        "std": float(np.std(risk)),
+        "median": float(np.median(risk)),
+        "VaR95": float(np.percentile(risk, 95)),
+        "VaR99": float(np.percentile(risk, 99)),
+        "max": float(np.max(risk)),
+    }

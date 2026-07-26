@@ -143,3 +143,52 @@ def test_cs_mode_can_diverge_from_vuln_mode():
     # valide, plausible (positive) Ergebnisse liefern.
     assert vuln_risk_mean > 0
     assert cs_risk_mean > 0
+
+
+# --- compare_paths() --------------------------------------------------------
+
+
+def test_compare_paths_returns_both_models_and_stats():
+    model = create_model_with_control()
+    result = model.compare_pyfair_paths(
+        threat_capability=BetaPert(low=0.2, mode=0.4, high=0.8), random_seed=13
+    )
+
+    assert set(result.keys()) == {
+        "vuln_model", "cs_model", "cam_result", "cs_vulnerability_scalar", "stats", "note",
+    }
+    assert list(result["stats"].columns) == ["vuln (Pfad A)", "cs (Pfad B)"]
+    assert list(result["stats"].index) == ["mean", "std", "median", "VaR95", "VaR99", "max"]
+    assert result["stats"].loc["mean", "vuln (Pfad A)"] > 0
+    assert result["stats"].loc["mean", "cs (Pfad B)"] > 0
+
+
+def test_compare_paths_uses_same_cam_result_for_both_paths():
+    """Gleicher Seed auf beiden Seiten -> TEF/Susceptibility/LM stammen aus
+    identischen Trials, nur die Vulnerability-Herleitung unterscheidet sich."""
+    model = create_model_with_control()
+    result = model.compare_pyfair_paths(
+        threat_capability=BetaPert(low=0.2, mode=0.4, high=0.8), random_seed=17
+    )
+
+    vuln_risk = result["vuln_model"].export_results()["Risk"].to_numpy()
+    np.testing.assert_allclose(vuln_risk, result["cam_result"]["risk"])
+
+
+def test_compare_paths_documents_variance_collapse_in_cs_path():
+    """Empirischer Beleg für den in ROADMAP.md dokumentierten Fund: pyfairs
+    natives Vulnerability = mean(CS < TCap) ist EIN Skalar über alle Trials
+    (siehe pyfair/model/model_calc.py._calculate_step_average), Pfad A dagegen
+    behält die volle trialweise Susceptibility-Streuung. Deshalb ist
+    std(cs) < std(vuln) hier ein erwartetes Struktur-Merkmal, kein Zufall."""
+    model = create_model_with_control()
+    result = model.compare_pyfair_paths(
+        threat_capability=BetaPert(low=0.2, mode=0.4, high=0.8), random_seed=21
+    )
+
+    # pyfairs natives Vulnerability ist für JEDEN Trial identisch (ein Skalar).
+    cs_vuln = result["cs_model"].export_results()["Vulnerability"].to_numpy()
+    assert result["cs_model"].export_results()["Vulnerability"].nunique() == 1
+    assert np.all(cs_vuln == result["cs_vulnerability_scalar"])
+
+    assert result["stats"].loc["std", "cs (Pfad B)"] < result["stats"].loc["std", "vuln (Pfad A)"]
