@@ -37,17 +37,25 @@ Pfad-A/B-Panel (`compare_paths()`) — Abschnitte erscheinen automatisch je nach
 
 ## Phase 5 — Web-Integration in fair-web (fair.neoprehn.de) ← **als Nächstes**
 
-Ziel: pyfair-cam als Library in der Django-App nutzbar.
+Ziel: pyfair-cam als Library in der Django-App nutzbar. In Unterschritte aufgebrochen (2026-07-27), weil der ursprüngliche 5-Punkte-Text zu grob war, um
+danach zu arbeiten — jeder Unterschritt ist jetzt einzeln abhakbar und baut auf dem vorherigen auf.
 
-- [ ] **pyfair-cam als Dependency in fair-web** aufnehmen (`pip install git+https://github.com/neoprehn/pyfair-cam.git@<tag>` in `requirements.txt`, analog zur
-      pyfair-Anbindung).
-- [ ] **Version-Tagging** in pyfair-cam (SemVer, z.B. `v0.2.0`) für reproduzierbare Builds.
-- [ ] **Admin-Einstellung für Andockpunkt** (Vuln/CS, analog `AppKonfiguration`) → siehe Abschnitt „Offene Architektur-Entscheidung: Andockpunkt FAIR ↔
+- [x] **5.1 — Eigenständiger Baustein in fair-web (Menü, Übersicht, volle Eingabe).** Neue Django-App `apps.cam`: Top-Level-Menüpunkt „FAIR-CAM", eigene
+      Übersicht (`cam:dashboard`) und ein vollständig editierbares Eingabeformular (`cam:create`/`cam:update`), das beim Neuanlegen mit dem kompletten
+      Ransomware-Beispiel aus `examples/ransomware_scenario.py` vorbelegt ist (TEF, Resistive Control, 6 Kill-Chain-Stufen, 5 Verlustklassen,
+      Containment/Resilience/Concurrency — >70 Felder, analog zur bestehenden Risikoszenario-Eingabe). Eigenes Datenmodell (`CamSzenario`, `CamControl`,
+      `CamStage`, `CamVerlustklasse`) statt pyfair-cam-Objekten direkt in der DB — Konvertierung in echte pyfair-cam-Objekte folgt in 5.2. Noch **kein**
+      Berechnen/Report-Embedding. Tests: `apps/cam` Modelle + CRUD-Views. Details: `fair-web/apps/cam/`, Commit-Historie im fair-web-Repo.
+- [ ] **5.2 — Berechnen-Button, Report-Einbettung.** Aus den `CamSzenario`-Objekten ein echtes pyfair-cam-Modell bauen (`ResistiveControl`, `Stage`,
+      `DetectionResponseFactor`, `FairCamModel`), `FairCamSimulator` ausführen, Ergebnis/`FairCamReport` in fair-web einbetten oder verlinken — analog zum
+      bestehenden `berechnung`-App-Muster (Simulationslauf + Status + Ergebnis-Seite) in fair-web.
+- [ ] **5.3 — pyfair-cam als echte Dependency.** Sobald 5.2 pyfair-cam tatsächlich importiert: `pip install git+https://github.com/neoprehn/pyfair-cam.git@<tag>`
+      in `requirements.txt` statt lokalem `-e ../pyfair-cam`-Verweis, dafür **Version-Tagging** in pyfair-cam (SemVer, z.B. `v0.2.0`) für reproduzierbare Builds.
+- [ ] **5.4 — Admin-Einstellung für Andockpunkt** (Vuln/CS, analog `AppKonfiguration`) → siehe Abschnitt „Offene Architektur-Entscheidung: Andockpunkt FAIR ↔
       FAIR-CAM" weiter unten. Mechanismus (beide Pfade) kommt aus Phase 3, hier nur die Umschalt-UI + Default-Entscheidung.
-- [ ] Django-Views/Forms für Control-Eingabe, Report-Einbettung.
-- [ ] **Perspektivisch/später:** animierte Vorher-Nachher-Show für die LM-Seite — CAM-Ergebnisse (Stage-Ausgang) dynamisch in die FAIR-Ergebnisse einblenden,
-      analog zur bereits animiert aufbauenden LEC-Kurve in fair-web. Kein MVP-Bestandteil, siehe „Rechenprinzip LM-Seite" oben.
-- [ ] Deployment läuft über die **bestehende fair-web CI/CD** (IONOS) — siehe unten.
+- [ ] **5.5 — Perspektivisch/später:** animierte Vorher-Nachher-Show für die LM-Seite — CAM-Ergebnisse (Stage-Ausgang) dynamisch in die FAIR-Ergebnisse
+      einblenden, analog zur bereits animiert aufbauenden LEC-Kurve in fair-web. Kein MVP-Bestandteil, siehe „Rechenprinzip LM-Seite" oben.
+- [ ] Deployment läuft über die **bestehende fair-web CI/CD** (IONOS) — siehe unten. Betrifft 5.3+ (sobald pyfair-cam echte Dependency ist).
 
 ---
 
