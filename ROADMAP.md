@@ -55,6 +55,10 @@ danach zu arbeiten — jeder Unterschritt ist jetzt einzeln abhakbar und baut au
       FAIR-CAM" weiter unten. Mechanismus (beide Pfade) kommt aus Phase 3, hier nur die Umschalt-UI + Default-Entscheidung.
 - [ ] **5.5 — Perspektivisch/später:** animierte Vorher-Nachher-Show für die LM-Seite — CAM-Ergebnisse (Stage-Ausgang) dynamisch in die FAIR-Ergebnisse
       einblenden, analog zur bereits animiert aufbauenden LEC-Kurve in fair-web. Kein MVP-Bestandteil, siehe „Rechenprinzip LM-Seite" oben.
+- [ ] **5.6 — Perspektivisch/später: Excel-Batch-Schnittstelle** (angefragt 2026-07-28). Analog zur geplanten FAIR-Variante in fair-web (siehe dortiges
+      `roadmap.md`, Abschnitt „Export"): Excel-Vorlage mit mehreren CAM-Szenarien hochladen, durchsimulieren, ausgefüllte Ergebnis-Excel(s) zurückgeben.
+      Format/Umfang bewusst noch nicht festgelegt — wird erst konkretisiert, wenn die FAIR-Variante steht und sich ein wiederverwendbares Muster zeigt statt
+      zweimal unabhängig etwas zu bauen.
 - [ ] Deployment läuft über die **bestehende fair-web CI/CD** (IONOS) — siehe unten. Betrifft 5.3+ (sobald pyfair-cam echte Dependency ist).
 
 ---
