@@ -170,8 +170,13 @@ an der geöffneten Datei — bei einem Multi-Root-Workspace erwischt es sonst de
 In Claude Code, je Projekt:
 
 ```
-Indiziere D:\Entwicklung\<ordner> mit codebase-memory-mcp.
+Indiziere D:\Entwicklung\<ordner> mit codebase-memory-mcp, Projektname "<ordner>".
 ```
+
+> **Projektname immer explizit angeben (`name`-Parameter).** Ohne ihn derivt das Tool automatisch
+> `D-Entwicklung-<Ordner>` statt der Kurzform — bei bereits vorhandenem Kurzform-Eintrag entsteht
+> ein zweites, divergierendes Duplikat (gefunden/bereinigt 22.08.2026). Siehe `delete_project` bei
+> `list_projects`-Treffern mit `D-Entwicklung-*`-Präfix.
 
 Aus **einem** Workspace heraus möglich — die anderen Ordner müssen nicht geöffnet sein.
 

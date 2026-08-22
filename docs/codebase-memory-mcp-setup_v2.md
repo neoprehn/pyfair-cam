@@ -425,11 +425,18 @@ Get-ChildItem D:\Entwicklung -Directory | Select-Object FullName
 In Claude Code, je Projekt eine Nachricht:
 
 ```
-Indiziere D:\Entwicklung\fair mit codebase-memory-mcp.
+Indiziere D:\Entwicklung\fair mit codebase-memory-mcp, Projektname "fair".
 ```
 
 Das geht **aus einem einzigen Workspace heraus** — die übrigen Ordner müssen nicht geöffnet sein.
 Nur `CBM_ALLOWED_ROOT` muss den Pfad umfassen.
+
+> **Projektname immer explizit angeben (`name`-Parameter).** Ohne ihn derivt das Tool automatisch
+> `D-Entwicklung-<Ordner>` aus dem Pfad statt der Kurzform. Fehlt der Parameter bei einem bereits
+> unter Kurzform indizierten Projekt, entsteht ein zweiter, divergierender Eintrag (gefunden und
+> bereinigt am 22.08.2026 — drei `D-Entwicklung-*`-Duplikate). Zeigt `list_projects` einen
+> `D-Entwicklung-*`-Eintrag neben der Kurzform: das ist ein Duplikat, mit `delete_project` auf den
+> langen Namen entfernen.
 
 **Erwartete Ausgabe je Lauf:**
 
